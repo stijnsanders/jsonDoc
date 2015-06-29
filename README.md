@@ -1,6 +1,6 @@
 # jsonDoc
 ## History
-_jsonDoc_ started out as _bsonDoc.pas_ and `IBSONDocument` in the [TMongoWire](https://github.com/stijnsanders/TMongoWire) project. Since it was a solid [JSON](http://json.org/) parser, based on IUnknowns (for the reference counting) and OleVariants (I really, really hate long lists of overloads for allkinds of types). I started to use _bsonDoc.pas_ and _bsonUtils.pas_ in several projects unrealted to [MongoDB](https://mongod.org/), so the idea surfaced to move them to a dedicated project.
+_jsonDoc_ started out as _bsonDoc.pas_ and `IBSONDocument` in the [TMongoWire](https://github.com/stijnsanders/TMongoWire) project. Since it was a solid [JSON](http://json.org/) parser, based on IUnknowns (for the reference counting) and OleVariants (I really, really hate long lists of overloads for allkinds of types). I started to use _bsonDoc.pas_ and _bsonUtils.pas_ in several projects unrealted to [MongoDB](https://mongod.org/), so the idea surfaced to have a dedicated project that focusses on `IJSONDocument`.
 
 ## API
 
