@@ -927,7 +927,13 @@ end;
 
 function JSON(x: OleVariant): IJSONDocument; overload;
 begin
-  Result:=IUnknown(x) as IJSONDocument;
+  if VarType(x)=varOleStr then
+   begin
+    Result:=TJSONDocument.Create as IJSONDocument;
+    Result.Parse(VarToStr(x));
+   end
+  else
+    Result:=IUnknown(x) as IJSONDocument;
 end;
 
 end.
