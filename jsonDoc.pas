@@ -23,6 +23,10 @@ const
     : TGUID = '{4A534F4E-0000-0001-C000-000000000001}';
   CLASS_JSONDocument
     : TGUID = '{4A534F4E-0000-0002-C000-000000000002}';
+  IID_IJSONEnumerator
+    : TGUID = '{4A534F4E-0000-0003-C000-000000000003}';
+  IID_IJSONEnumerable
+    : TGUID = '{4A534F4E-0000-0004-C000-000000000004}';
 
 type
   IJSONDocument = interface(IUnknown)
@@ -37,10 +41,24 @@ type
       read Get_Item write Set_Item; default;
   end;
 
-  //TODO: ActiveX enumerator over elements
+  //TODO: IEnumVariant?
+  IJSONEnumerator = interface(IUnknown)
+    ['{4A534F4E-0000-0003-C000-000000000003}']
+    function EOF: boolean; safecall;
+    function Next: boolean; safecall;
+    function Get_Key: WideString; safecall;
+    function Get_Value: OleVariant; safecall;
+    property Key: WideString read Get_Key;
+    property Value: OleVariant read Get_Value;
+  end;
+
+  IJSONEnumerable = interface(IUnknown)
+    ['{4A534F4E-0000-0004-C000-000000000004}']
+    function NewEnumerator: IJSONEnumerator; safecall;
+  end;
 
   //JSON document as interfaced object allows storage in a variant variable
-  TJSONDocument = class(TInterfacedObject, IJSONDocument)
+  TJSONDocument = class(TInterfacedObject, IJSONDocument, IJSONEnumerable)
   private
     FElementIndex,FElementSize:integer;
     FElements:array of record
@@ -62,6 +80,20 @@ type
     function ToVarArray:OleVariant; safecall;
     procedure Clear; safecall;
     property Item[const Key: WideString]: OleVariant read Get_Item write Set_Item; default;
+    function NewEnumerator: IJSONEnumerator; safecall;
+  end;
+
+  TJSONEnumerator = class(TInterfacedObject, IJSONEnumerator)
+  private
+    FData:TJSONDocument;
+    FIndex: integer;
+  public
+    constructor Create(Data: TJSONDocument);
+    destructor Destroy; override;
+    function EOF: boolean; safecall;
+    function Next: boolean; safecall;
+    function Get_Key: WideString; safecall;
+    function Get_Value: OleVariant; safecall;
   end;
 
   EJSONException=class(Exception);
@@ -69,20 +101,40 @@ type
   EJSONEncodeException=class(EJSONException);
 
 {
+  JSON document factory
+  call JSON without parameters do create a new blank document
+}
+function JSON: IJSONDocument; overload;
+
+{
   JSON document builder
   pass an array of key/value-pairs,
   use value '[' to start an embedded document,
   and key ']' to close it.
 }
-function JSON: IJSONDocument; overload;
 function JSON(const x: array of OleVariant): IJSONDocument; overload;
+
+{
+  JSON document converter
+  pass a single variant to have it converted to an IJSONDocument interface
+  or a string with JSON parsed into a IJSONDocument
+  or nil when VarIsNull
+}
 function JSON(x: OleVariant): IJSONDocument; overload;
+
+{
+  JSON enumerator
+  get a new enumerator to enumeratare the key-value pairs in the document
+}
+function JSONEnum(x: IJSONDocument): IJSONEnumerator; //inline;
 
 implementation
 
 uses
   Classes,
   Variants;
+
+{ TJSONDocument }
 
 procedure TJSONDocument.AfterConstruction;
 begin
@@ -868,6 +920,11 @@ begin
   FGotMatch:=false;
 end;
 
+function TJSONDocument.NewEnumerator: IJSONEnumerator;
+begin
+  Result:=TJSONEnumerator.Create(Self);
+end;
+
 { JSON }
 
 function JSON:IJSONDocument; //overload;
@@ -937,6 +994,65 @@ begin
     else
       Result:=IUnknown(x) as IJSONDocument;
   end;
+end;
+
+function JSONEnum(x: IJSONDocument): IJSONEnumerator;
+begin
+  Result:=(x as IJSONEnumerable).NewEnumerator;
+end;
+
+{ TJSONEnumerator }
+
+constructor TJSONEnumerator.Create(Data: TJSONDocument);
+begin
+  inherited Create;
+  FData:=Data;
+  FIndex:=-1;
+  //TODO: hook into TJSONDocument destructor?
+end;
+
+destructor TJSONEnumerator.Destroy;
+begin
+  FData:=nil;
+  inherited;
+end;
+
+function TJSONEnumerator.EOF: boolean;
+begin
+  if FIndex=-1 then
+    Result:=true//?
+  else
+   begin
+    while (FIndex<FData.FElementIndex) and
+      (FData.FElements[FIndex].SortIndex<>FData.FElements[FIndex].LoadIndex) do
+      inc(FIndex);
+    Result:=FIndex<FData.FElementIndex;
+   end;
+end;
+
+function TJSONEnumerator.Next: boolean;
+begin
+  inc(FIndex);
+  while (FIndex<FData.FElementIndex) and
+    (FData.FElements[FIndex].SortIndex<>FData.FElements[FIndex].LoadIndex) do
+    inc(FIndex);
+  Result:=FIndex<FData.FElementIndex;
+end;
+
+function TJSONEnumerator.Get_Key: WideString;
+begin
+  if (FIndex<0) or (FIndex>=FData.FElementIndex) then
+    raise ERangeError.Create('Out of range')
+  else
+    Result:=FData.FElements[FIndex].Key;
+end;
+
+function TJSONEnumerator.Get_Value: OleVariant;
+begin
+  if (FIndex<0) or (FIndex>=FData.FElementIndex) then
+    raise ERangeError.Create('Out of range')
+  else
+    Result:=FData.FElements[FIndex].Value;
 end;
 
 end.
