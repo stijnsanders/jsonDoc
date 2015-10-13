@@ -126,7 +126,8 @@ function JSON(x: OleVariant): IJSONDocument; overload;
   JSON enumerator
   get a new enumerator to enumeratare the key-value pairs in the document
 }
-function JSONEnum(x: IJSONDocument): IJSONEnumerator; //inline;
+function JSONEnum(x: IJSONDocument): IJSONEnumerator; overload; //inline;
+function JSONEnum(x: OleVariant): IJSONEnumerator; overload;
 
 implementation
 
@@ -1001,6 +1002,11 @@ begin
   Result:=(x as IJSONEnumerable).NewEnumerator;
 end;
 
+function JSONEnum(x: OleVariant): IJSONEnumerator;
+begin
+  Result:=(IUnknown(x) as IJSONEnumerable).NewEnumerator;
+end;
+
 { TJSONEnumerator }
 
 constructor TJSONEnumerator.Create(Data: TJSONDocument);
@@ -1018,23 +1024,22 @@ begin
 end;
 
 function TJSONEnumerator.EOF: boolean;
+var
+  i:integer;
 begin
-  if FIndex=-1 then
-    Result:=true//?
-  else
-   begin
-    while (FIndex<FData.FElementIndex) and
-      (FData.FElements[FIndex].SortIndex<>FData.FElements[FIndex].LoadIndex) do
-      inc(FIndex);
-    Result:=FIndex<FData.FElementIndex;
-   end;
+  i:=FIndex;
+  if i=-1 then i:=0;
+  while (i<FData.FElementIndex) and
+    (FData.FElements[i].LoadIndex<>FData.FLoadIndex) do
+    inc(i);
+  Result:=i>=FData.FElementIndex;
 end;
 
 function TJSONEnumerator.Next: boolean;
 begin
   inc(FIndex);
   while (FIndex<FData.FElementIndex) and
-    (FData.FElements[FIndex].SortIndex<>FData.FElements[FIndex].LoadIndex) do
+    (FData.FElements[FIndex].LoadIndex<>FData.FLoadIndex) do
     inc(FIndex);
   Result:=FIndex<FData.FElementIndex;
 end;
