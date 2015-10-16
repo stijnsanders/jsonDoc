@@ -11,6 +11,8 @@ https://mustache.github.io/
 }
 unit mustache;
 
+{$D-}
+
 interface
 
 uses jsonDoc, SysUtils;
@@ -70,7 +72,7 @@ var
   b:boolean;
   dd:IJSONDocument;
 const
-  rGrowStep=$1000;
+  rGrowStep=$10000;
   procedure rCopy(const xx;x:cardinal);//inline;
   begin
     if ri+x>rl then

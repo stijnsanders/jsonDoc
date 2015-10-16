@@ -735,6 +735,24 @@ var
       dec(i);
      end;
   end;
+const
+  resultGrowStep=$4000;
+var
+  wi,wl:cardinal;
+  procedure w(const xx:WideString);
+  var
+    xl:cardinal;
+  begin
+    xl:=Length(xx);
+    while wi+xl>wl do
+     begin
+      //grow
+      inc(wl,resultGrowStep);
+      SetLength(Result,wl);
+     end;
+    Move(xx[1],Result[wi+1],xl*2);
+    inc(wi,xl);
+  end;
 var
   firstItem:boolean;
   ods:char;
@@ -751,32 +769,31 @@ begin
   stack[stackIndex].ai:=0;//VarArrayLowBound(
   stack[stackIndex].al:=VarArrayHighBound(stack[stackIndex].a,1)+1;
   stack[stackIndex].isDoc:=true;
-  Result:='';//TODO: TStringBuilder
-
+  wi:=1;
+  wl:=resultGrowStep;
+  SetLength(Result,wl);
+  Result[1]:='{';
   {$if CompilerVersion >= 24}
   ods:= FormatSettings.DecimalSeparator;
   {$else}
   ods:=DecimalSeparator;
   {$ifend}
-
   try
-
     {$if CompilerVersion >= 24}
     FormatSettings.DecimalSeparator:='.';
     {$else}
     DecimalSeparator:='.';
     {$ifend}
-
     firstItem:=true;
-    Result:=Result+'{';
+    //w('{');//see above
     while stackIndex<>-1 do
      begin
       while (stack[stackIndex].ai<stack[stackIndex].al) do
        begin
-        if firstItem then firstItem:=false else Result:=Result+',';
+        if firstItem then firstItem:=false else w(',');
         if stack[stackIndex].isDoc then
          begin
-          Result:=Result+'"'+EncodeStr(stack[stackIndex].a[stack[stackIndex].ai,0])+'":';
+          w('"'+EncodeStr(stack[stackIndex].a[stack[stackIndex].ai,0])+'":');
           v:=stack[stackIndex].a[stack[stackIndex].ai,1];
          end
         else
@@ -790,24 +807,24 @@ begin
           //not an array, plain value
           //TODO: if (vt and varTypeMask)=varByte then BLOB?
           case vt and varTypeMask of
-            varNull:Result:=Result+'null';
+            varNull:w('null');
             varSmallint,varInteger,varShortInt,
             varByte,varWord,varLongWord,varInt64:
-              Result:=Result+VarToWideStr(v);
+              w(VarToWideStr(v));
             varSingle,varDouble,varCurrency:
-              Result:=Result+FloatToStr(v);//?
+              w(FloatToStr(v));//?
             varDate://TODO:"yyyy-mm-dd hh:nn:ss.zzz"? $date?
-              //Result:=Result+FloatToStr(VarToDateTime(v));//?
-              Result:=Result+'"'+FormatDateTime(
-                'yyyy-mm-dd"T"hh:nn:ss.zzz',VarToDateTime(v))+'"';
+              //w(FloatToStr(VarToDateTime(v)));//?
+              w('"'+FormatDateTime(
+                'yyyy-mm-dd"T"hh:nn:ss.zzz',VarToDateTime(v))+'"');
             varOleStr:
-              Result:=Result+'"'+EncodeStr(VarToWideStr(v))+'"';
+              w('"'+EncodeStr(VarToWideStr(v))+'"');
             varBoolean:
-              if v then Result:=Result+'true' else Result:=Result+'false';
+              if v then w('true') else w('false');
             varDispatch,varUnknown:
              begin
               uu:=IUnknown(v);
-              if uu=nil then Result:=Result+'null'
+              if uu=nil then w('null')
               else
               if uu.QueryInterface(IJSONDocument,d)=S_OK then
                begin
@@ -822,7 +839,7 @@ begin
                 stack[stackIndex].ai:=0;
                 stack[stackIndex].al:=VarArrayHighBound(stack[stackIndex].a,1)+1;
                 stack[stackIndex].isDoc:=true;
-                Result:=Result+'{';
+                w('{');
                 firstItem:=true;
                 d:=nil;
                end
@@ -853,7 +870,7 @@ begin
           stack[stackIndex].ai:=VarArrayLowBound(v,1);
           stack[stackIndex].al:=VarArrayHighBound(v,1)+1;
           stack[stackIndex].isDoc:=false;
-          Result:=Result+'[';
+          w('[');
           firstItem:=true;
          end;
 
@@ -862,22 +879,21 @@ begin
        begin
         //pop from stack
         if stack[stackIndex].isDoc then
-          Result:=Result+'}'
+          w('}')
         else
-          Result:=Result+']';
+          w(']');
         VarClear(stack[stackIndex].a);
         dec(stackIndex);
         firstItem:=false;
        end;
      end;
+    SetLength(Result,wi);
   finally
-
     {$if CompilerVersion >= 24}
     FormatSettings.DecimalSeparator:=ods;
     {$else}
     DecimalSeparator:=ods;
     {$ifend}
-
   end;
 end;
 
