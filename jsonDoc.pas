@@ -48,8 +48,9 @@ type
     function Next: boolean; safecall;
     function Get_Key: WideString; safecall;
     function Get_Value: OleVariant; safecall;
+    procedure Set_Value(Value: OleVariant); safecall;
     property Key: WideString read Get_Key;
-    property Value: OleVariant read Get_Value;
+    property Value: OleVariant read Get_Value write Set_Value;
   end;
 
   IJSONEnumerable = interface(IUnknown)
@@ -94,6 +95,7 @@ type
     function Next: boolean; safecall;
     function Get_Key: WideString; safecall;
     function Get_Value: OleVariant; safecall;
+    procedure Set_Value(Value: OleVariant); safecall;
   end;
 
   EJSONException=class(Exception);
@@ -1074,6 +1076,14 @@ begin
     raise ERangeError.Create('Out of range')
   else
     Result:=FData.FElements[FIndex].Value;
+end;
+
+procedure TJSONEnumerator.Set_Value(Value: OleVariant);
+begin
+  if (FIndex<0) or (FIndex>=FData.FElementIndex) then
+    raise ERangeError.Create('Out of range')
+  else
+    FData.FElements[FIndex].Value:=Value;
 end;
 
 end.
