@@ -130,6 +130,8 @@ function JSON(x: OleVariant): IJSONDocument; overload;
 }
 function JSONEnum(x: IJSONDocument): IJSONEnumerator; overload; //inline;
 function JSONEnum(x: OleVariant): IJSONEnumerator; overload;
+function JSON(x: IJSONEnumerator): IJSONDocument; overload; //inline;
+function JSONEnum(x: IJSONEnumerator): IJSONEnumerator; overload; //inline;
 
 implementation
 
@@ -1023,6 +1025,16 @@ end;
 function JSONEnum(x: OleVariant): IJSONEnumerator;
 begin
   Result:=(IUnknown(x) as IJSONEnumerable).NewEnumerator;
+end;
+
+function JSON(x: IJSONEnumerator): IJSONDocument;
+begin
+  Result:=IUnknown(x.Value) as IJSONDocument;
+end;
+
+function JSONEnum(x: IJSONEnumerator): IJSONEnumerator;
+begin
+  Result:=(IUnknown(x.Value) as IJSONEnumerable).NewEnumerator;
 end;
 
 { TJSONEnumerator }
