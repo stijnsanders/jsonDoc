@@ -16,7 +16,11 @@ Convert a variant array into an `IJSONDocument` instance. Pass a list of key/val
 
     function JSON(x: OleVariant): IJSONDocument; overload;
 
-Use this overload to convert an OleVariant into an `IJSONDocument` reference.
+Use this overload to convert an OleVariant into an `IJSONDocument` reference:
+
+* string types are parsed into a new `IJSONDocument` instance,
+* Null (or empty or unassigned) returns `nil`,
+* in all other cases the variant is probed for a reference to an `IJSONDocument` instace.
 
 ### IJSONDocument
 
@@ -39,3 +43,20 @@ Clear the values of the `IJSONDocument`, but keep the list of keys. When process
     property Item[const Key: WideString]: OleVariant; default;
 
 Get or set the value for a key. Notice this is the default property, so you can access the keys of a `IJSONDocument` by index notation (e.g.: `d['id']`)
+
+### IJSONEnumerator
+
+Use the `JSONEnum` function to create an `IJSONEnumerator` instance for a `IJSONDocument` reference.
+
+    function EOF: boolean;
+
+Checks wether the enumerator is past the end of the set. Use `EOF` on a new enumerator for skipping the iteration on an empty set.
+
+    function Next: boolean;
+
+Moves the iterator to the next item in the set. Moves the iterator to the first item on the first call. Returns false when moved past the end of the set.
+
+    function Key: WideString;
+    function Value: OleVariant;
+
+Returns the key or value of the current item in the set.
