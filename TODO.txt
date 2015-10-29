@@ -1,0 +1,4 @@
+* thread-safe IJSONDocument implementation
+* central global class pointer for all instances?
+* pooling and re-use to save on memory allocations
+* improve on key index searching (sorting? trees? minimax? dictionary?)

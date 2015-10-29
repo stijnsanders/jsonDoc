@@ -60,3 +60,7 @@ Moves the iterator to the next item in the set. Moves the iterator to the first 
     function Value: OleVariant;
 
 Returns the key or value of the current item in the set.
+
+## Remarks
+
+**Attention:** the default `IJSONDocument` implementation: `TJSONDocument` is **not** thread-safe. Please use proper locking and synchronisation methods to ensure only one thread accesses an instance at one time.
