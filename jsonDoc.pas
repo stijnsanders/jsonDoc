@@ -12,6 +12,15 @@ unit jsonDoc;
 {$WARN SYMBOL_PLATFORM OFF}
 {$D-}
 
+{
+
+Options:
+
+Define "JSONDOC_STOREINDENTING" here or in the project settings to make
+ToString write indentation EOL's and tabs.
+
+}
+
 interface
 
 uses
@@ -414,7 +423,7 @@ begin
   firstItem:=true;
 
   {$if CompilerVersion >= 24}
-  ods:= FormatSettings.DecimalSeparator;
+  ods:=FormatSettings.DecimalSeparator;
   {$else}
   ods:=DecimalSeparator;
   {$ifend}
@@ -741,6 +750,9 @@ var
   end;
 const
   resultGrowStep=$4000;
+  {$IFDEF JSONDOC_STOREINDENTING}
+  tabs=#13#10#9#9#9#9#9#9#9#9#9#9#9#9#9#9;
+  {$ENDIF}
 var
   wi,wl:cardinal;
   procedure w(const xx:WideString);
@@ -795,9 +807,14 @@ begin
       while (stack[stackIndex].ai<stack[stackIndex].al) do
        begin
         if firstItem then firstItem:=false else w(',');
+        {$IFDEF JSONDOC_STOREINDENTING}
+        w(Copy(tabs,1,stackIndex+3));
+        {$ENDIF}
         if stack[stackIndex].isDoc then
          begin
-          w('"'+EncodeStr(stack[stackIndex].a[stack[stackIndex].ai,0])+'":');
+          w('"');
+          w(EncodeStr(stack[stackIndex].a[stack[stackIndex].ai,0]));
+          w('":');
           v:=stack[stackIndex].a[stack[stackIndex].ai,1];
          end
         else
@@ -817,12 +834,20 @@ begin
               w(VarToWideStr(v));
             varSingle,varDouble,varCurrency:
               w(FloatToStr(v));//?
-            varDate://TODO:"yyyy-mm-dd hh:nn:ss.zzz"? $date?
+            varDate:
+             begin
               //w(FloatToStr(VarToDateTime(v)));//?
-              w('"'+FormatDateTime(
-                'yyyy-mm-dd"T"hh:nn:ss.zzz',VarToDateTime(v))+'"');
+              w('"');
+              //TODO:"yyyy-mm-dd hh:nn:ss.zzz"? $date?
+              w(FormatDateTime('yyyy-mm-dd"T"hh:nn:ss.zzz',VarToDateTime(v)));
+              w('"');
+             end;
             varOleStr:
-              w('"'+EncodeStr(VarToWideStr(v))+'"');
+             begin
+              w('"');
+              w(EncodeStr(VarToWideStr(v)));
+              w('"');
+             end;
             varBoolean:
               if v then w('true') else w('false');
             varDispatch,varUnknown:
@@ -882,6 +907,9 @@ begin
       while (stackIndex<>-1) and (stack[stackIndex].ai>=stack[stackIndex].al) do
        begin
         //pop from stack
+        {$IFDEF JSONDOC_STOREINDENTING}
+        if not firstItem then w(Copy(tabs,1,stackIndex+2));
+        {$ENDIF}
         if stack[stackIndex].isDoc then
           w('}')
         else
