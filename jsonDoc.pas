@@ -15,9 +15,13 @@ unit jsonDoc;
 {
 
 Options:
+Define here or in the project settings
 
-Define "JSONDOC_STOREINDENTING" here or in the project settings to make
-ToString write indentation EOL's and tabs.
+  JSONDOC_JSON_STRICT
+    to disallow missing quotes around key names
+
+  JSONDOC_STOREINDENTING
+    to make ToString write indentation EOL's and tabs
 
 }
 
@@ -445,7 +449,7 @@ begin
       if InObjectOrArray and (SkipWhiteSpace<>'}') then
        begin
         //key string
-        {$IFDEF BSINUTILS_JSON_STRICT}
+        {$IFDEF JSONDOC_JSON_STRICT}
         Expect('"','JSON key string not enclosed in double quotes');
         GetStringIndexes(k1,k2);
         {$ELSE}
@@ -480,7 +484,7 @@ begin
              end
             else
              begin
-              //TODO: re-use BSON docs in array?
+              //TODO: re-use JSONdocs in array?
               if ai=al then
                begin
                 inc(al,arrGrowStep);//not too much, not too little (?)
@@ -814,7 +818,11 @@ begin
          begin
           w('"');
           w(EncodeStr(stack[stackIndex].a[stack[stackIndex].ai,0]));
+          {$IFDEF JSONDOC_STOREINDENTING}
+          w('": ');
+          {$ELSE}
           w('":');
+          {$ENDIF}
           v:=stack[stackIndex].a[stack[stackIndex].ai,1];
          end
         else
