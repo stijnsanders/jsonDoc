@@ -2,7 +2,7 @@
 
 jsonDoc.pas
 
-Copyright 2015 Stijn Sanders
+Copyright 2015-2016 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
@@ -90,7 +90,8 @@ type
     procedure AfterConstruction; override;
     destructor Destroy; override;
     function Parse(const JSONData: WideString): IJSONDocument; safecall;
-    function ToString: WideString; safecall;
+    function JSONToString: WideString; safecall;
+    function IJSONDocument.ToString=JSONToString;
     function ToVarArray:OleVariant; safecall;
     procedure Clear; safecall;
     property Item[const Key: WideString]: OleVariant read Get_Item write Set_Item; default;
@@ -302,7 +303,7 @@ var
       if jsonData[di]='\' then
        begin
         inc(di);
-        case char(jsonData[di]) of
+        case AnsiChar(jsonData[di]) of
           '"','\','/':Result[ii]:=jsonData[di];
           'b':Result[ii]:=#8;
           't':Result[ii]:=#9;
@@ -468,7 +469,7 @@ begin
         Expect(':','JSON key, value not separated by colon');
        end;
       //value
-      case char(SkipWhiteSpace) of
+      case AnsiChar(SkipWhiteSpace) of
         '{','['://object or array
          begin
           b:=InObjectOrArray;
@@ -550,16 +551,16 @@ begin
           v1:=i;
           if b then inc(i);
           v64:=0;
-          while (i<=l) and (char(jsonData[i]) in ['0'..'9']) do
+          while (i<=l) and (AnsiChar(jsonData[i]) in ['0'..'9']) do
            begin
             v64:=v64*10+(word(jsonData[i]) and $F);//TODO: detect overflow
             inc(i);
            end;
-          if char(jsonData[i]) in ['.','e','E'] then
+          if AnsiChar(jsonData[i]) in ['.','e','E'] then
            begin
             //float
             inc(i);
-            while (i<=l) and (char(jsonData[i]) in
+            while (i<=l) and (AnsiChar(jsonData[i]) in
               ['0'..'9','-','+','e','E']) do inc(i);
             //try except EConvertError?
             SetValue(StrToFloat(Copy(jsonData,v1,i-v1)));
@@ -664,7 +665,7 @@ begin
   Result:=Self;
 end;
 
-function TJSONDocument.ToString: WideString;
+function TJSONDocument.JSONToString: WideString;
   function EncodeStr(x:OleVariant):WideString;
   const
     resGrowStep=$100;
