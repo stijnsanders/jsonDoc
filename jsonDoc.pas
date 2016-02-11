@@ -33,42 +33,42 @@ uses
 const
   //COM GUID's
   IID_IJSONDocument
-    : TGUID = '{4A534F4E-0000-0001-C000-000000000001}';
+    : TGUID = '{4A534F4E-0001-0001-C000-000000000001}';
   CLASS_JSONDocument
-    : TGUID = '{4A534F4E-0000-0002-C000-000000000002}';
+    : TGUID = '{4A534F4E-0001-0002-C000-000000000002}';
   IID_IJSONEnumerator
-    : TGUID = '{4A534F4E-0000-0003-C000-000000000003}';
+    : TGUID = '{4A534F4E-0001-0003-C000-000000000003}';
   IID_IJSONEnumerable
-    : TGUID = '{4A534F4E-0000-0004-C000-000000000004}';
+    : TGUID = '{4A534F4E-0001-0004-C000-000000000004}';
 
 type
   IJSONDocument = interface(IUnknown)
-    ['{4A534F4E-0000-0001-C000-000000000001}']
-    function Get_Item(const Key: WideString): OleVariant; safecall;
-    procedure Set_Item(const Key: WideString; Value: OleVariant); safecall;
-    function Parse(const JSONData: WideString): IJSONDocument; safecall;
-    function ToString: WideString; safecall;
-    function ToVarArray:OleVariant; safecall;
-    procedure Clear; safecall;
+    ['{4A534F4E-0001-0001-C000-000000000001}']
+    function Get_Item(const Key: WideString): OleVariant; stdcall;
+    procedure Set_Item(const Key: WideString; Value: OleVariant); stdcall;
+    function Parse(const JSONData: WideString): IJSONDocument; stdcall;
+    function ToString: WideString; stdcall;
+    function ToVarArray:OleVariant; stdcall;
+    procedure Clear; stdcall;
     property Item[const Key: WideString]: OleVariant
       read Get_Item write Set_Item; default;
   end;
 
   //TODO: IEnumVariant?
   IJSONEnumerator = interface(IUnknown)
-    ['{4A534F4E-0000-0003-C000-000000000003}']
-    function EOF: boolean; safecall;
-    function Next: boolean; safecall;
-    function Get_Key: WideString; safecall;
-    function Get_Value: OleVariant; safecall;
-    procedure Set_Value(Value: OleVariant); safecall;
+    ['{4A534F4E-0001-0003-C000-000000000003}']
+    function EOF: boolean; stdcall;
+    function Next: boolean; stdcall;
+    function Get_Key: WideString; stdcall;
+    function Get_Value: OleVariant; stdcall;
+    procedure Set_Value(Value: OleVariant); stdcall;
     property Key: WideString read Get_Key;
     property Value: OleVariant read Get_Value write Set_Value;
   end;
 
   IJSONEnumerable = interface(IUnknown)
-    ['{4A534F4E-0000-0004-C000-000000000004}']
-    function NewEnumerator: IJSONEnumerator; safecall;
+    ['{4A534F4E-0001-0004-C000-000000000004}']
+    function NewEnumerator: IJSONEnumerator; stdcall;
   end;
 
   //JSON document as interfaced object allows storage in a variant variable
@@ -84,18 +84,18 @@ type
     FGotMatch:boolean;
     function GetKeyIndex(const Key: WideString): boolean;
   protected
-    function Get_Item(const Key: WideString): OleVariant; safecall;
-    procedure Set_Item(const Key: WideString; Value: OleVariant); safecall;
+    function Get_Item(const Key: WideString): OleVariant; stdcall;
+    procedure Set_Item(const Key: WideString; Value: OleVariant); stdcall;
   public
     procedure AfterConstruction; override;
     destructor Destroy; override;
-    function Parse(const JSONData: WideString): IJSONDocument; safecall;
-    function JSONToString: WideString; safecall;
+    function Parse(const JSONData: WideString): IJSONDocument; stdcall;
+    function JSONToString: WideString; stdcall;
     function IJSONDocument.ToString=JSONToString;
-    function ToVarArray:OleVariant; safecall;
-    procedure Clear; safecall;
+    function ToVarArray:OleVariant; stdcall;
+    procedure Clear; stdcall;
     property Item[const Key: WideString]: OleVariant read Get_Item write Set_Item; default;
-    function NewEnumerator: IJSONEnumerator; safecall;
+    function NewEnumerator: IJSONEnumerator; stdcall;
   end;
 
   TJSONEnumerator = class(TInterfacedObject, IJSONEnumerator)
@@ -105,11 +105,11 @@ type
   public
     constructor Create(Data: TJSONDocument);
     destructor Destroy; override;
-    function EOF: boolean; safecall;
-    function Next: boolean; safecall;
-    function Get_Key: WideString; safecall;
-    function Get_Value: OleVariant; safecall;
-    procedure Set_Value(Value: OleVariant); safecall;
+    function EOF: boolean; stdcall;
+    function Next: boolean; stdcall;
+    function Get_Key: WideString; stdcall;
+    function Get_Value: OleVariant; stdcall;
+    procedure Set_Value(Value: OleVariant); stdcall;
   end;
 
   EJSONException=class(Exception);
