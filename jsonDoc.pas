@@ -11,6 +11,7 @@ unit jsonDoc;
 
 {$WARN SYMBOL_PLATFORM OFF}
 {$D-}
+{$L-}
 
 {
 
@@ -40,8 +41,20 @@ const
     : TGUID = '{4A534F4E-0001-0003-C000-000000000003}';
   IID_IJSONEnumerable
     : TGUID = '{4A534F4E-0001-0004-C000-000000000004}';
+  IID_IJSONDocArrayBuilder
+    : TGUID = '{4A534F4E-0001-0005-C000-000000000005}';
 
 type
+{
+  IJSONDocument interface
+  the base JSON document interface that provides access to a set of
+  key-value pairs.
+  use ToString and Parse to convert JSON to and from string values.
+  use ToVarArray to access the key-value pairs as a [x,2] variant array.
+  use Clear to re-use a JSON doc for parsing or building a new similar
+  document and keep the allocated memory for keys and values.
+  see also: JSON function
+}
   IJSONDocument = interface(IUnknown)
     ['{4A534F4E-0001-0001-C000-000000000001}']
     function Get_Item(const Key: WideString): OleVariant; stdcall;
@@ -54,6 +67,11 @@ type
       read Get_Item write Set_Item; default;
   end;
 
+{
+  IJSONEnumerator interface
+  use IJSONEnumerator to enumerate a document's key-value pairs
+  see also: JSONEnum function
+}
   //TODO: IEnumVariant?
   IJSONEnumerator = interface(IUnknown)
     ['{4A534F4E-0001-0003-C000-000000000003}']
@@ -66,12 +84,40 @@ type
     property Value: OleVariant read Get_Value write Set_Value;
   end;
 
+{
+  IJSONEnumerable interface
+  used to get a IJSONEnumerable instance for a document
+  see also: JSONEnum function
+}
   IJSONEnumerable = interface(IUnknown)
     ['{4A534F4E-0001-0004-C000-000000000004}']
     function NewEnumerator: IJSONEnumerator; stdcall;
   end;
 
-  //JSON document as interfaced object allows storage in a variant variable
+{
+  IJSONDocArrayBuilder interface
+  use IJSONDocArrayBuilder to build an array of similar documents,
+  ideally in combination with a single IJSONDocument instance and
+  IJSONDocument.Clear to re-use the memory allocated for keys and values
+  see also: JSONDocArr function
+}
+  IJSONDocArrayBuilder = interface(IUnknown)
+    ['{4A534F4E-0001-0005-C000-000000000005}']
+    function Get_Item(Index: integer): IJSONDocument; stdcall;
+    procedure Set_Item(Index: integer; Doc: IJSONDocument); stdcall;
+    function Add(Doc: IJSONDocument): integer; stdcall;
+    procedure LoadItem(Index: integer; Doc: IJSONDocument); stdcall;
+    function Count: integer; stdcall;
+    function ToString: WideString; stdcall;
+    property Item[Idx: integer]: IJSONDocument
+      read Get_Item write Set_Item; default;
+  end;
+
+{
+  TJSONDocument class
+  the default IJSONDocument implementation
+  see also: JSON function
+}
   TJSONDocument = class(TInterfacedObject, IJSONDocument, IJSONEnumerable)
   private
     FElementIndex,FElementSize:integer;
@@ -94,10 +140,16 @@ type
     function IJSONDocument.ToString=JSONToString;
     function ToVarArray:OleVariant; stdcall;
     procedure Clear; stdcall;
-    property Item[const Key: WideString]: OleVariant read Get_Item write Set_Item; default;
+    property Item[const Key: WideString]: OleVariant
+      read Get_Item write Set_Item; default;
     function NewEnumerator: IJSONEnumerator; stdcall;
   end;
 
+{
+  TJSONEnumerator class
+  the default IJSONEnumerator implementation
+  see also: JSONEnum function
+}
   TJSONEnumerator = class(TInterfacedObject, IJSONEnumerator)
   private
     FData:TJSONDocument;
@@ -112,18 +164,43 @@ type
     procedure Set_Value(Value: OleVariant); stdcall;
   end;
 
+{
+  TJSONDocArrayBuilder class
+  the default IJSONDocArrayBuilder implementation
+  see also: JSONDocArr function
+}
+  TJSONDocArrayBuilder= class(TInterfacedObject, IJSONDocArrayBuilder)
+  private
+    FItems:array of WideString;
+    FItemsCount,FItemsSize,FTotalLength:integer;
+    function Get_Item(Index: integer): IJSONDocument; stdcall;
+    procedure Set_Item(Index: integer; Doc: IJSONDocument); stdcall;
+    function Add(Doc: IJSONDocument): integer; stdcall;
+    procedure LoadItem(Index: integer; Doc: IJSONDocument); stdcall;
+    function JSONToString: WideString; stdcall;
+    function IJSONDocArrayBuilder.ToString=JSONToString;
+    function Count: integer; stdcall;
+  public
+    constructor Create;
+    destructor Destroy; override;
+  end;
+
+{
+  EJSONException class types
+  exception types thrown from TJSONDocument's Parse and ToString
+}
   EJSONException=class(Exception);
   EJSONDecodeException=class(EJSONException);
   EJSONEncodeException=class(EJSONException);
 
 {
-  JSON document factory
+  JSON function: JSON document factory
   call JSON without parameters do create a new blank document
 }
 function JSON: IJSONDocument; overload;
 
 {
-  JSON document builder
+  JSON function: JSON document builder
   pass an array of key/value-pairs,
   use value '[' to start an embedded document,
   and key ']' to close it.
@@ -131,7 +208,7 @@ function JSON: IJSONDocument; overload;
 function JSON(const x: array of OleVariant): IJSONDocument; overload;
 
 {
-  JSON document converter
+  JSON function: JSON document converter
   pass a single variant to have it converted to an IJSONDocument interface
   or a string with JSON parsed into a IJSONDocument
   or nil when VarIsNull
@@ -139,7 +216,7 @@ function JSON(const x: array of OleVariant): IJSONDocument; overload;
 function JSON(x: OleVariant): IJSONDocument; overload;
 
 {
-  JSON enumerator
+  JSONEnum function
   get a new enumerator to enumeratare the key-value pairs in the document
 }
 function JSONEnum(x: IJSONDocument): IJSONEnumerator; overload; //inline;
@@ -147,11 +224,18 @@ function JSONEnum(x: OleVariant): IJSONEnumerator; overload;
 function JSON(x: IJSONEnumerator): IJSONDocument; overload; //inline;
 function JSONEnum(x: IJSONEnumerator): IJSONEnumerator; overload; //inline;
 
+{
+  JSONDocArray function
+  get a new IJSONDocArrayBuilder
+}
+function JSONDocArray: IJSONDocArrayBuilder; overload;
+function JSONDocArray(const Items:array of IJSONDocument):
+  IJSONDocArrayBuilder; overload;
+
 implementation
 
 uses
-  Classes,
-  Variants;
+  Classes, Variants;
 
 { TJSONDocument }
 
@@ -230,7 +314,8 @@ const
   GrowStep=$20;//not too much, not too little (?)
 begin
   //if ((VarType(Value) and varArray)<>0) and (VarArrayDimCount(v)>1) then
-  //  raise EJSONException.Create('VarArray: multi-dimensional arrays not supported');
+  //  raise EJSONException.Create(
+  //    'VarArray: multi-dimensional arrays not supported');
   if not GetKeyIndex(Key) then
    begin
     if FElementIndex=FElementSize then
@@ -267,7 +352,8 @@ var
       Result:=#13#10'(#'+IntToStr(i)+')"'+Copy(jsonData,1,i-1)+
         ' >>> '+jsonData[i]+' <<< '+Copy(jsonData,i+1,VicinityExtent)+'"'
     else
-      Result:=#13#10'(#'+IntToStr(i)+')"...'+Copy(jsonData,i-VicinityExtent-1,VicinityExtent)+
+      Result:=#13#10'(#'+IntToStr(i)+')"...'+
+        Copy(jsonData,i-VicinityExtent-1,VicinityExtent)+
         ' >>> '+jsonData[i]+' <<< '+Copy(jsonData,i+1,VicinityExtent)+'"';
   end;
   procedure Expect(c:WideChar;const msg:string);
@@ -505,7 +591,10 @@ begin
             InObjectOrArray:=true;
            end
           else
+           begin
             InObjectOrArray:=false;
+            ////TODO: if d[key] is IJSONDocArrayBuilder then?
+           end;
           inc(i);
           //push onto stack
           if stackIndex=stackSize then
@@ -786,6 +875,7 @@ var
   vt:TVarType;
   uu:IUnknown;
   d:IJSONDocument;
+  da:IJSONDocArrayBuilder;
 begin
   //TODO: indent options?
   stackLength:=stackGrowStep;
@@ -836,7 +926,8 @@ begin
         inc(stack[stackIndex].ai);
         vt:=VarType(v);
         if (vt and varByRef)<>0 then
-          raise EJSONEncodeException.Create('VarByRef: not implemented'+ExTrace);
+          raise EJSONEncodeException.Create(
+            'VarByRef: not implemented'+ExTrace);
         if (vt and varArray)=0 then
          begin
           //not an array, plain value
@@ -880,11 +971,18 @@ begin
                  end;
                 stack[stackIndex].a:=d.ToVarArray;
                 stack[stackIndex].ai:=0;
-                stack[stackIndex].al:=VarArrayHighBound(stack[stackIndex].a,1)+1;
+                stack[stackIndex].al:=
+                  VarArrayHighBound(stack[stackIndex].a,1)+1;
                 stack[stackIndex].isDoc:=true;
                 w('{');
                 firstItem:=true;
                 d:=nil;
+               end
+              else
+              if uu.QueryInterface(IJSonDocArrayBuilder,da)=S_OK then
+               begin
+                w(da.ToString);
+                da:=nil;
                end
               else
               //IRegExp2? IStream? IPersistStream?
@@ -899,9 +997,9 @@ begin
         else
          begin
           //start an array
-          if VarArrayDimCount(v)>1 then
+          if VarArrayDimCount(v)>1 then //TODO:
             raise EJSONEncodeException.Create(
-              'VarArray: multi-dimensional arrays not supported'+ExTrace);//TODO:
+              'VarArray: multi-dimensional arrays not supported'+ExTrace);
           //push onto stack
           inc(stackIndex);
           if stackIndex=stackLength then
@@ -1138,6 +1236,113 @@ begin
     raise ERangeError.Create('Out of range')
   else
     FData.FElements[FIndex].Value:=Value;
+end;
+
+{ JSONDocArray }
+
+function JSONDocArray: IJSONDocArrayBuilder; overload;
+begin
+  Result:=TJSONDocArrayBuilder.Create;
+end;
+
+function JSONDocArray(const Items:array of IJSONDocument):
+  IJSONDocArrayBuilder; overload;
+var
+  i:integer;
+begin
+  Result:=TJSONDocArrayBuilder.Create;
+  for i:=0 to Length(Items)-1 do Result.Add(Items[i]);
+end;
+
+{ TJSONDocArrayBuilder }
+
+constructor TJSONDocArrayBuilder.Create;
+begin
+  inherited Create;
+  FItemsCount:=0;
+  FItemsSize:=0;
+  FTotalLength:=0;
+end;
+
+destructor TJSONDocArrayBuilder.Destroy;
+begin
+  SetLength(FItems,0);
+  inherited;
+end;
+
+function TJSONDocArrayBuilder.Count: integer;
+begin
+  Result:=FItemsCount;
+end;
+
+procedure TJSONDocArrayBuilder.LoadItem(Index: integer;
+  Doc: IJSONDocument);
+begin
+  if (Index<0) or (Index>=FItemsCount) then
+    raise ERangeError.Create('Index out of range');
+  Doc.Clear;
+  if FItems[Index]<>'null' then Doc.Parse(FItems[Index]);
+  //else?
+end;
+
+function TJSONDocArrayBuilder.Get_Item(Index: integer): IJSONDocument;
+begin
+  if (Index<0) or (Index>=FItemsCount) then
+    raise ERangeError.Create('Index out of range');
+  //parse from string here assuming this won't be needed much
+  if FItems[Index]='null' then Result:=nil else Result:=JSON(FItems[Index]);
+end;
+
+function TJSONDocArrayBuilder.Add(Doc: IJSONDocument): integer;
+begin
+  if FItemsCount=FItemsSize then
+   begin
+    inc(FItemsSize,$400);//grow
+    SetLength(FItems,FItemsSize);
+   end;
+  //ToString here to save on persisting effort later
+  if Doc=nil then
+    FItems[FItemsCount]:='null'
+  else
+    FItems[FItemsCount]:=Doc.ToString;
+  inc(FTotalLength,Length(FItems[FItemsCount]));
+  Result:=FItemsCount;
+  inc(FItemsCount);
+end;
+
+procedure TJSONDocArrayBuilder.Set_Item(Index: integer;
+  Doc: IJSONDocument);
+var
+  v:WideString;
+begin
+  if (Index<0) or (Index>=FItemsCount) then
+    raise ERangeError.Create('Index out of range');
+  if Doc=nil then
+    v:='null'
+  else
+    v:=Doc.ToString;
+  inc(FTotalLength,Length(v)-Length(FItems[Index]));
+  FItems[Index]:=v;
+end;
+
+function TJSONDocArrayBuilder.JSONToString: WideString;
+var
+  i,x,l:integer;
+begin
+  SetLength(Result,FTotalLength+1+FItemsCount);
+  i:=0;
+  x:=1;
+  while i<FItemsCount do
+   begin
+    Result[x]:=',';
+    inc(x);
+    l:=Length(FItems[i]);
+    Move(FItems[i][1],Result[x],l*2);
+    inc(x,l);
+    inc(i);
+   end;
+  Result[1]:='[';
+  Result[x]:=']';
 end;
 
 end.
