@@ -301,7 +301,8 @@ end;
 
 function TJSONDocument.Get_Item(const Key: WideString): OleVariant;
 begin
-  if GetKeyIndex(Key) and (FElements[FGotIndex].LoadIndex=FLoadIndex) then
+  if (Self<>nil) and GetKeyIndex(Key)
+    and (FElements[FGotIndex].LoadIndex=FLoadIndex) then
     Result:=FElements[FGotIndex].Value
   else
     Result:=Null;
@@ -878,6 +879,11 @@ var
   da:IJSONDocArrayBuilder;
 begin
   //TODO: indent options?
+  if Self=nil then
+   begin
+    Result:='null';
+    Exit;
+   end;
   stackLength:=stackGrowStep;
   stackIndex:=0;
   SetLength(stack,stackLength);
@@ -1045,6 +1051,11 @@ function TJSONDocument.ToVarArray: OleVariant;
 var
   i,l:integer;
 begin
+  if Self=nil then
+   begin
+    Result:=Null;
+    Exit;
+   end;
   l:=0;
   for i:=0 to FElementIndex-1 do
     if FElements[i].LoadIndex=FLoadIndex then inc(l);
