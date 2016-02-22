@@ -122,9 +122,10 @@ begin
        (PAnsiChar(m.Memory)[1]=#$BB) and
        (PAnsiChar(m.Memory)[2]=#$BF) then
      begin
+      m.Position:=m.Size;
       i:=0;
       m.Write(i,1);
-      w:=UTF8Decode(PAnsiChar(m.Memory)[3]);
+      w:=UTF8Decode(PAnsiChar(@PAnsiChar(m.Memory)[3]));
      end
     //ANSI
     else
@@ -327,6 +328,7 @@ procedure TfrmJsonViewer.TreeView1DblClick(Sender: TObject);
 var
   v:OleVariant;
   p:TJSONNode;
+  d:IJSONDocument;
 begin
   if TreeView1.Selected<>nil then
    begin
@@ -338,7 +340,12 @@ begin
        begin
         v:=p.Data[p.Key];
         if p.Index<>-1 then v:=v[VarArrayLowBound(v,1)+p.Index];
-        Clipboard.AsText:=VarToStr(v);
+        //case VarType(v) of
+        if (VarType(v)=varUnknown) and
+          (IUnknown(v).QueryInterface(IJSONDocument,d)=S_OK) then
+          Clipboard.AsText:=d.ToString
+        else
+          Clipboard.AsText:=VarToStr(v);
        end;
    end;
 end;
