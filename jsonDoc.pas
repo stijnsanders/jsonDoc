@@ -345,23 +345,23 @@ var
     while (i<=l) and (jsonData[i]<=' ') do inc(i);
     if i<=l then Result:=jsonData[i] else Result:=#0;
   end;
-  function ExVicinity:WideString;
+  function ExVicinity(di:integer):WideString;
   const
     VicinityExtent=8;
   begin
-    if i<=VicinityExtent then
-      Result:=#13#10'(#'+IntToStr(i)+')"'+Copy(jsonData,1,i-1)+
-        ' >>> '+jsonData[i]+' <<< '+Copy(jsonData,i+1,VicinityExtent)+'"'
+    if di<=VicinityExtent then
+      Result:=#13#10'(#'+IntToStr(di)+')"'+Copy(jsonData,1,di-1)+
+        ' >>> '+jsonData[di]+' <<< '+Copy(jsonData,di+1,VicinityExtent)+'"'
     else
-      Result:=#13#10'(#'+IntToStr(i)+')"...'+
-        Copy(jsonData,i-VicinityExtent-1,VicinityExtent)+
-        ' >>> '+jsonData[i]+' <<< '+Copy(jsonData,i+1,VicinityExtent)+'"';
+      Result:=#13#10'(#'+IntToStr(di)+')"...'+
+        Copy(jsonData,di-VicinityExtent-1,VicinityExtent)+
+        ' >>> '+jsonData[di]+' <<< '+Copy(jsonData,di+1,VicinityExtent)+'"';
   end;
   procedure Expect(c:WideChar;const msg:string);
   begin
     while (i<=l) and (jsonData[i]<=' ') do inc(i);
     if (i>l) or (jsonData[i]<>c) then
-      raise EJSONDecodeException.Create(msg+ExVicinity);
+      raise EJSONDecodeException.Create(msg+ExVicinity(i));
     inc(i);
   end;
   procedure GetStringIndexes(var i1,i2:integer);
@@ -408,13 +408,13 @@ var
                 $30..$39:w:=(w shl 4) or (v and $F);
                 $41..$5A,$61..$7A:w:=(w shl 4) or ((v and $1F)+9);
                 else raise EJSONDecodeException.Create(
-                  'JSON Invalid espace sequence'+ExVicinity);
+                  'JSON Invalid espace sequence'+ExVicinity(di));
               end;
              end;
             Result[ii]:=WideChar(w);
            end;
           else raise EJSONDecodeException.Create(
-            'JSON Unknown escape sequence'+ExVicinity);
+            'JSON Unknown escape sequence'+ExVicinity(di));
         end;
        end
       else
@@ -694,7 +694,7 @@ begin
          end;
 
         else raise EJSONDecodeException.Create(
-          'JSON Unrecognized value type'+ExVicinity);
+          'JSON Unrecognized value type'+ExVicinity(i));
       end;
       if not firstItem then
        begin
