@@ -61,6 +61,7 @@ var
   i:integer;
   fn:string;
   p:TJSONNode;
+  n:TTreeNode;
 begin
   inherited;
   TreeView1.Items.BeginUpdate;
@@ -86,6 +87,8 @@ begin
   finally
     TreeView1.Items.EndUpdate;
   end;
+  n:=TreeView1.Items.GetFirstNode;
+  if (n<>nil) and (n.getNextSibling=nil) then n.Expand(false);
 end;
 
 procedure TfrmJsonViewer.Activate;
@@ -138,6 +141,7 @@ begin
   finally
     m.Free;
   end;
+  if (w<>'') and (w[1]='[') then w:='{"":'+w+'}';
   Result:=JSON.Parse(w);
 end;
 
@@ -157,9 +161,9 @@ begin
       p.Loaded:=true;
       p.HasChildren:=false;
       if p.Data<>nil then
-        if p.Key='' then
-          ExpandJSON(Node,p.Data)
-        else
+//        if p.Key='' then
+//          ExpandJSON(Node,p.Data)
+//        else
          begin
           v:=p.Data[p.Key];
           if p.Index<>-1 then v:=v[VarArrayLowBound(v,1)+p.Index];

@@ -6,6 +6,8 @@ Copyright 2015-2016 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
+v1.0.2
+
 }
 unit jsonDoc;
 
@@ -58,7 +60,7 @@ type
   IJSONDocument = interface(IUnknown)
     ['{4A534F4E-0001-0001-C000-000000000001}']
     function Get_Item(const Key: WideString): OleVariant; stdcall;
-    procedure Set_Item(const Key: WideString; Value: OleVariant); stdcall;
+    procedure Set_Item(const Key: WideString; const Value: OleVariant); stdcall;
     function Parse(const JSONData: WideString): IJSONDocument; stdcall;
     function ToString: WideString; stdcall;
     function ToVarArray:OleVariant; stdcall;
@@ -79,7 +81,7 @@ type
     function Next: boolean; stdcall;
     function Get_Key: WideString; stdcall;
     function Get_Value: OleVariant; stdcall;
-    procedure Set_Value(Value: OleVariant); stdcall;
+    procedure Set_Value(const Value: OleVariant); stdcall;
     property Key: WideString read Get_Key;
     property Value: OleVariant read Get_Value write Set_Value;
   end;
@@ -131,7 +133,7 @@ type
     function GetKeyIndex(const Key: WideString): boolean;
   protected
     function Get_Item(const Key: WideString): OleVariant; stdcall;
-    procedure Set_Item(const Key: WideString; Value: OleVariant); stdcall;
+    procedure Set_Item(const Key: WideString; const Value: OleVariant); stdcall;
   public
     procedure AfterConstruction; override;
     destructor Destroy; override;
@@ -161,7 +163,7 @@ type
     function Next: boolean; stdcall;
     function Get_Key: WideString; stdcall;
     function Get_Value: OleVariant; stdcall;
-    procedure Set_Value(Value: OleVariant); stdcall;
+    procedure Set_Value(const Value: OleVariant); stdcall;
   end;
 
 {
@@ -213,14 +215,14 @@ function JSON(const x: array of OleVariant): IJSONDocument; overload;
   or a string with JSON parsed into a IJSONDocument
   or nil when VarIsNull
 }
-function JSON(x: OleVariant): IJSONDocument; overload;
+function JSON(const x: OleVariant): IJSONDocument; overload;
 
 {
   JSONEnum function
   get a new enumerator to enumeratare the key-value pairs in the document
 }
 function JSONEnum(x: IJSONDocument): IJSONEnumerator; overload; //inline;
-function JSONEnum(x: OleVariant): IJSONEnumerator; overload;
+function JSONEnum(const x: OleVariant): IJSONEnumerator; overload;
 function JSON(x: IJSONEnumerator): IJSONDocument; overload; //inline;
 function JSONEnum(x: IJSONEnumerator): IJSONEnumerator; overload; //inline;
 
@@ -308,7 +310,8 @@ begin
     Result:=Null;
 end;
 
-procedure TJSONDocument.Set_Item(const Key: WideString; Value: OleVariant);
+procedure TJSONDocument.Set_Item(const Key: WideString;
+  const Value: OleVariant);
 var
   i:integer;
 const
@@ -433,7 +436,7 @@ var
   d:IJSONDocument;
   a:array of OleVariant;
   at:TVarType;
-  procedure SetValue(v:OleVariant);
+  procedure SetValue(const v:OleVariant);
   begin
     if InObjectOrArray then
       d[GetStringValue(k1,k2)]:=v
@@ -756,7 +759,7 @@ begin
 end;
 
 function TJSONDocument.JSONToString: WideString;
-  function EncodeStr(x:OleVariant):WideString;
+  function EncodeStr(const x:OleVariant):WideString;
   const
     resGrowStep=$100;
     hex:array[0..15] of WideChar=(
@@ -1154,7 +1157,7 @@ begin
   Result:=d[0];
 end;
 
-function JSON(x: OleVariant): IJSONDocument; overload;
+function JSON(const x: OleVariant): IJSONDocument; overload;
 begin
   case VarType(x) of
     varNull,varEmpty:Result:=nil;//raise?
@@ -1173,7 +1176,7 @@ begin
   Result:=(x as IJSONEnumerable).NewEnumerator;
 end;
 
-function JSONEnum(x: OleVariant): IJSONEnumerator;
+function JSONEnum(const x: OleVariant): IJSONEnumerator;
 begin
   Result:=(IUnknown(x) as IJSONEnumerable).NewEnumerator;
 end;
@@ -1241,7 +1244,7 @@ begin
     Result:=FData.FElements[FIndex].Value;
 end;
 
-procedure TJSONEnumerator.Set_Value(Value: OleVariant);
+procedure TJSONEnumerator.Set_Value(const Value: OleVariant);
 begin
   if (FIndex<0) or (FIndex>=FData.FElementIndex) then
     raise ERangeError.Create('Out of range')
