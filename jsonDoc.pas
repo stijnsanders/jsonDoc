@@ -357,7 +357,7 @@ var
         ' >>> '+jsonData[di]+' <<< '+Copy(jsonData,di+1,VicinityExtent)+'"'
     else
       Result:=#13#10'(#'+IntToStr(di)+')"...'+
-        Copy(jsonData,di-VicinityExtent-1,VicinityExtent)+
+        Copy(jsonData,di-VicinityExtent,VicinityExtent)+
         ' >>> '+jsonData[di]+' <<< '+Copy(jsonData,di+1,VicinityExtent)+'"';
   end;
   procedure Expect(c:WideChar;const msg:string);
