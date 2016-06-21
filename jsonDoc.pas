@@ -1211,26 +1211,36 @@ function TJSONEnumerator.EOF: boolean;
 var
   i:integer;
 begin
-  i:=FIndex;
-  if i=-1 then i:=0;
-  while (i<FData.FElementIndex) and
-    (FData.FElements[i].LoadIndex<>FData.FLoadIndex) do
-    inc(i);
-  Result:=i>=FData.FElementIndex;
+  if FData=nil then
+    Result:=true
+  else
+   begin
+    i:=FIndex;
+    if i=-1 then i:=0;
+    while (i<FData.FElementIndex) and
+      (FData.FElements[i].LoadIndex<>FData.FLoadIndex) do
+      inc(i);
+    Result:=i>=FData.FElementIndex;
+   end;
 end;
 
 function TJSONEnumerator.Next: boolean;
 begin
-  inc(FIndex);
-  while (FIndex<FData.FElementIndex) and
-    (FData.FElements[FIndex].LoadIndex<>FData.FLoadIndex) do
+  if FData=nil then
+    Result:=false
+  else
+   begin
     inc(FIndex);
-  Result:=FIndex<FData.FElementIndex;
+    while (FIndex<FData.FElementIndex) and
+      (FData.FElements[FIndex].LoadIndex<>FData.FLoadIndex) do
+      inc(FIndex);
+    Result:=FIndex<FData.FElementIndex;
+   end;
 end;
 
 function TJSONEnumerator.Get_Key: WideString;
 begin
-  if (FIndex<0) or (FIndex>=FData.FElementIndex) then
+  if (FIndex<0) or (FData=nil) or (FIndex>=FData.FElementIndex) then
     raise ERangeError.Create('Out of range')
   else
     Result:=FData.FElements[FIndex].Key;
@@ -1238,7 +1248,7 @@ end;
 
 function TJSONEnumerator.Get_Value: OleVariant;
 begin
-  if (FIndex<0) or (FIndex>=FData.FElementIndex) then
+  if (FIndex<0) or (FData=nil) or (FIndex>=FData.FElementIndex) then
     raise ERangeError.Create('Out of range')
   else
     Result:=FData.FElements[FIndex].Value;
@@ -1246,7 +1256,7 @@ end;
 
 procedure TJSONEnumerator.Set_Value(const Value: OleVariant);
 begin
-  if (FIndex<0) or (FIndex>=FData.FElementIndex) then
+  if (FIndex<0) or (FData=nil) or (FIndex>=FData.FElementIndex) then
     raise ERangeError.Create('Out of range')
   else
     FData.FElements[FIndex].Value:=Value;
