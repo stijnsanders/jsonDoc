@@ -1132,7 +1132,7 @@ begin
      end
     else
      begin
-      if key='[' then raise Exception.Create(
+      if key='[' then raise EJSONException.Create(
         'JSON builder: embedded document needs key at index '+IntToStr(i));
       //value
       inc(i);
@@ -1148,11 +1148,11 @@ begin
         if i<l then
           d[di].Item[key]:=x[i]
         else
-          raise Exception.Create('JSON builder: last key is missing value');
+          raise EJSONException.Create('JSON builder: last key is missing value');
      end;
     inc(i);
    end;
-  //if di>0 then raise Exception.Create(
+  //if di>0 then raise EJSONException.Create(
   //  'JSON builder: '+IntToStr(di)+' closing brackets missing');?
   Result:=d[0];
 end;

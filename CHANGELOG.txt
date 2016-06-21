@@ -1,6 +1,7 @@
 v1.0.2
 - jsonV: support array as root
 - jsonDoc: const OleVariant arguments
+- jsonEnum: with Data=nil 'fail silently' (EOF=true Next=false)
 
 v1.0.1
 - IJSONEnumerator
