@@ -18,7 +18,7 @@ object frmJsonViewer: TfrmJsonViewer
     Left = 0
     Top = 0
     Width = 1072
-    Height = 525
+    Height = 524
     Align = alClient
     HideSelection = False
     Indent = 19
@@ -40,6 +40,13 @@ object frmJsonViewer: TfrmJsonViewer
       ImageIndex = 1
       ShortCut = 16451
       OnExecute = EditCopy1Execute
+    end
+    object EditCopyValue1: TAction
+      Category = 'Edit'
+      Caption = 'Copy &value'
+      Hint = 'Copy value|Copies the value only to the clipboard'
+      ShortCut = 24643
+      OnExecute = EditCopyValue1Execute
     end
   end
 end

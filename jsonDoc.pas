@@ -6,7 +6,7 @@ Copyright 2015-2016 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
-v1.0.2
+v1.0.3
 
 }
 unit jsonDoc;

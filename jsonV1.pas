@@ -11,6 +11,7 @@ type
     ActionList1: TActionList;
     TreeView1: TTreeView;
     EditCopy1: TEditCopy;
+    EditCopyValue1: TAction;
     procedure TreeView1CreateNodeClass(Sender: TCustomTreeView;
       var NodeClass: TTreeNodeClass);
     procedure TreeView1Expanding(Sender: TObject; Node: TTreeNode;
@@ -18,6 +19,7 @@ type
     procedure EditCopy1Execute(Sender: TObject);
     procedure TreeView1Change(Sender: TObject; Node: TTreeNode);
     procedure TreeView1DblClick(Sender: TObject);
+    procedure EditCopyValue1Execute(Sender: TObject);
   private
     function LoadJSON(const FilePath: string): IJSONDocument;
     procedure ExpandJSON(Parent: TTreeNode; Data: IJSONDocument); 
@@ -220,6 +222,32 @@ begin
   Loaded:=false;
 end;
 
+function VarTypeStr(vt:TVarType):string;
+begin
+  case vt and varTypeMask of
+    varNull,varEmpty:Result:='null';
+    varBoolean:Result:='bool';
+    varOleStr:Result:='str';
+    varUnknown,varDispatch:Result:='obj';
+    varShortInt:Result:='i8';
+    varSmallint:Result:='i16';
+    varInteger:Result:='i32';
+    varSingle:Result:='f32';
+    varDouble:Result:='f64';
+    varCurrency:Result:='c';
+    varDate:Result:='ts';
+    varVariant:Result:='var';
+    $000E:Result:='dec';//varDecimal
+    varByte:Result:='u8';
+    varWord:Result:='u16';
+    varLongWord:Result:='u32';
+    varInt64:Result:='i64';
+    $0015:Result:='u64';//varWord64
+    varStrArg:Result:='uuid';
+    else Result:=IntToHex(vt,4);
+  end;
+end;
+
 procedure TJSONNode.ShowValue(xData: IJSONDocument; const xKey: WideString;
   xIndex: integer; const xValue: OleVariant);
 var
@@ -227,6 +255,7 @@ var
   d:IJSONDocument;
   e:IJSONEnumerator;
   s,t:string;
+  l:integer;
 begin
   Data:=xData;
   Key:=xKey;
@@ -234,17 +263,15 @@ begin
   vt:=VarType(xValue);
   if (vt and varArray)<>0 then
    begin
-    case vt and varTypeMask of
-      varNull,varEmpty:s:='null';
-      varBoolean:s:='bool';
-      varOleStr:s:='str';
-      varUnknown:s:='intf';
-      varDispatch:s:='disp';
-      else s:=IntToHex(vt,4);
-    end;
-    Text:=Text+' ['+s+'#'+IntToStr(VarArrayHighBound(xValue,1)-
-      VarArrayLowBound(xValue,1)+1)+']';
-    HasChildren:=true;
+    l:=VarArrayHighBound(xValue,1)-
+      VarArrayLowBound(xValue,1)+1;
+    if l=0 then
+      Text:=Text+' []'
+    else
+     begin
+      Text:=Format('%s [%s#%d]',[Text,VarTypeStr(vt),l]);
+      HasChildren:=true;
+     end;
    end
   else
     case vt of
@@ -303,15 +330,36 @@ begin
           HasChildren:=true;
          end
         else
-          Text:=Text+' ('+IntToHex(vt,4)+')???';
+          Text:=Text+' ('+VarTypeStr(vt)+')???';
       else
-        Text:=Text+' ('+IntToHex(vt,4)+') '+VarToStr(xValue);
+        Text:=Text+' ('+VarTypeStr(vt)+') '+VarToStr(xValue);
     end;
 end;
 
 procedure TfrmJsonViewer.EditCopy1Execute(Sender: TObject);
 begin
-  if TreeView1.Selected<>nil then Clipboard.AsText:=TreeView1.Selected.Text;
+  if TreeView1.Selected<>nil then
+    Clipboard.AsText:=TreeView1.Selected.Text;
+end;
+
+procedure TfrmJsonViewer.EditCopyValue1Execute(Sender: TObject);
+var
+  p:TJSONNode;
+  v:OleVariant;
+  d:IJSONDocument;
+begin
+  if (TreeView1.Selected<>nil) and (TreeView1.Selected is TJSONNode) then
+   begin
+    p:=TreeView1.Selected as TJSONNode;
+    v:=p.Data[p.Key];
+    if p.Index<>-1 then v:=v[VarArrayLowBound(v,1)+p.Index];
+    case VarType(v) of
+      varUnknown,varDispatch:
+        if IUnknown(v).QueryInterface(IJSONDocument,d)=S_OK then
+          Clipboard.AsText:=d.ToString;
+      else Clipboard.AsText:=VarToStr(v);
+    end;
+   end;
 end;
 
 procedure TfrmJsonViewer.TreeView1Change(Sender: TObject; Node: TTreeNode);
