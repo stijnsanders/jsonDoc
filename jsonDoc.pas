@@ -479,7 +479,7 @@ var
   var
     ii,jj:integer;
   begin
-    if at=varEmpty then at:=varVariant;//empty array!
+    if not(VarTypeIsValidArrayType(at)) then at:=varVariant;
     Result:=VarArrayCreate([0,ai-a1-1],at);
     ii:=a1;
     jj:=0;
