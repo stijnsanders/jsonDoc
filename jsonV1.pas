@@ -66,6 +66,7 @@ var
   n:TTreeNode;
 begin
   inherited;
+  Application.Handle:=Handle;
   TreeView1.Items.BeginUpdate;
   try
     case ParamCount of
