@@ -1,3 +1,6 @@
+v1.0.4
+- JsonEnum: return 'empty' enumerator on nil/Null
+
 v1.0.3
 - jsonV: improved variant type display
 - jsonV: Ctrl+Shift+C to copy value only

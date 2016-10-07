@@ -6,7 +6,7 @@ Copyright 2015-2016 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
-v1.0.3
+v1.0.4
 
 }
 unit jsonDoc;
@@ -1173,12 +1173,18 @@ end;
 
 function JSONEnum(x: IJSONDocument): IJSONEnumerator;
 begin
-  Result:=(x as IJSONEnumerable).NewEnumerator;
+  if x=nil then
+    Result:=TJSONEnumerator.Create(nil)
+  else
+    Result:=(x as IJSONEnumerable).NewEnumerator;
 end;
 
 function JSONEnum(const x: OleVariant): IJSONEnumerator;
 begin
-  Result:=(IUnknown(x) as IJSONEnumerable).NewEnumerator;
+  if VarIsNull(x) then
+    Result:=TJSONEnumerator.Create(nil)
+  else
+    Result:=(IUnknown(x) as IJSONEnumerable).NewEnumerator;
 end;
 
 function JSON(x: IJSONEnumerator): IJSONDocument;
@@ -1188,7 +1194,10 @@ end;
 
 function JSONEnum(x: IJSONEnumerator): IJSONEnumerator;
 begin
-  Result:=(IUnknown(x.Value) as IJSONEnumerable).NewEnumerator;
+  if VarIsNull(x.Value) then
+    Result:=TJSONEnumerator.Create(nil)
+  else
+    Result:=(IUnknown(x.Value) as IJSONEnumerable).NewEnumerator;
 end;
 
 { TJSONEnumerator }
