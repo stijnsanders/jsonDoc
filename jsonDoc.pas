@@ -1194,7 +1194,7 @@ end;
 
 function JSONEnum(x: IJSONEnumerator): IJSONEnumerator;
 begin
-  if VarIsNull(x.Value) then
+  if (x=nil) or VarIsNull(x.Value) then
     Result:=TJSONEnumerator.Create(nil)
   else
     Result:=(IUnknown(x.Value) as IJSONEnumerable).NewEnumerator;

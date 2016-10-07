@@ -24,9 +24,7 @@ type
     function LoadJSON(const FilePath: string): IJSONDocument;
     procedure ExpandJSON(Parent: TTreeNode; Data: IJSONDocument); 
   protected
-    procedure CreateParams(var Params: TCreateParams); override;
     procedure DoShow; override;
-    procedure Activate; override;
   end;
 
   TJSONNode=class(TTreeNode)
@@ -52,12 +50,6 @@ uses
 
 { TfrmJsonViewer }
 
-procedure TfrmJsonViewer.CreateParams(var Params: TCreateParams);
-begin
-  inherited;
-  Params.WndParent:=GetDesktopWindow;
-end;
-
 procedure TfrmJsonViewer.DoShow;
 var
   i:integer;
@@ -66,7 +58,6 @@ var
   n:TTreeNode;
 begin
   inherited;
-  Application.Handle:=Handle;
   TreeView1.Items.BeginUpdate;
   try
     case ParamCount of
@@ -92,12 +83,6 @@ begin
   end;
   n:=TreeView1.Items.GetFirstNode;
   if (n<>nil) and (n.getNextSibling=nil) then n.Expand(false);
-end;
-
-procedure TfrmJsonViewer.Activate;
-begin
-  inherited;
-  ShowWindow(Application.Handle,SW_HIDE);
 end;
 
 procedure TfrmJsonViewer.TreeView1CreateNodeClass(Sender: TCustomTreeView;
