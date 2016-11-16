@@ -6,7 +6,7 @@ Copyright 2016 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
-v1.0.4
+v1.0.5
 
 }
 unit jsonTS;
@@ -69,6 +69,7 @@ type
     procedure Clear; stdcall;
     property Item[const Key: WideString]: OleVariant
       read Get_Item write Set_Item; default;
+    procedure Delete(const Key: WideString); stdcall;
   end;
 
 {
@@ -149,6 +150,7 @@ type
     property Item[const Key: WideString]: OleVariant
       read Get_Item write Set_Item; default;
     function NewEnumerator: IJSONEnumerator; stdcall;
+    procedure Delete(const Key: WideString); stdcall;
   end;
 
 {
@@ -1115,6 +1117,36 @@ begin
        end
       else
         VarClear(FElements[i].Value);
+    inc(FLoadIndex);
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+end;
+
+procedure TJSONDocumentThreadSafe.Delete(const Key: WideString);
+var
+  i,GotSorted:integer;
+  uu:IUnknown;
+  d:IJSONDocument;
+begin
+  EnterCriticalSection(FLock);
+  try
+    if GetKeyIndex(Key,i,GotSorted) then
+     begin
+      if VarType(FElements[i].Value)=varUnknown then
+       begin
+        uu:=IUnknown(FElements[i].Value);
+        if uu.QueryInterface(IID_IJSONDocument,d)=S_OK then
+          d.Clear
+        else
+          VarClear(FElements[i].Value);
+       end
+      else
+        VarClear(FElements[i].Value);
+      FElements[i].LoadIndex:=FLoadIndex-1;
+     end;
+    //else raise?
+    //FDirty:=true;
   finally
     LeaveCriticalSection(FLock);
   end;
@@ -1199,7 +1231,7 @@ end;
 function JSONEnum(x: IJSONDocument): IJSONEnumerator;
 begin
   if x=nil then
-    Result:=TJSONEnumerator.Create(nil)
+    Result:=TJSONEnumeratorThreadSafe.Create(nil)
   else
     Result:=(x as IJSONEnumerable).NewEnumerator;
 end;
@@ -1207,7 +1239,7 @@ end;
 function JSONEnum(const x: OleVariant): IJSONEnumerator;
 begin
   if VarIsNull(x) then
-    Result:=TJSONEnumerator.Create(nil)
+    Result:=TJSONEnumeratorThreadSafe.Create(nil)
   else
     Result:=(IUnknown(x) as IJSONEnumerable).NewEnumerator;
 end;
@@ -1220,7 +1252,7 @@ end;
 function JSONEnum(x: IJSONEnumerator): IJSONEnumerator;
 begin
   if (x=nil) or VarIsNull(x.Value) then
-    Result:=TJSONEnumerator.Create(nil)
+    Result:=TJSONEnumeratorThreadSafe.Create(nil)
   else
     Result:=(IUnknown(x.Value) as IJSONEnumerable).NewEnumerator;
 end;
