@@ -1,3 +1,12 @@
+v1.1.0
+  ### ATTENTION!!! breaking change: ###
+- JSON function: use '{' key suffix to start embedded document (instead of value '[')
+- IJSONDocument.ToString re-done using IJSONEnumerator
+- IJSONDocWithReUse to fix re-using pre-allocated keys
+
+v1.0.5
+- IJSONDocument.Delete
+
 v1.0.4
 - JsonEnum: return 'empty' enumerator on nil/Null
 

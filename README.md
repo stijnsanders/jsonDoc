@@ -6,17 +6,25 @@ _jsonDoc_ started out as _bsonDoc.pas_ and `IBSONDocument` in the [TMongoWire](h
 
 ### JSON
 
+To create a new `IJSONDocument` instance:
+
     function JSON: IJSONDocument; overload;
 
-Use this function to create a new `IJSONDocument` instance.
+To create and populate a new `IJSONDocument` instance:
 
     function JSON(const x: array of OleVariant): IJSONDocument; overload;
 
-Convert a variant array into an `IJSONDocument` instance. Pass a list of key/value-pairs, use value `[` to start an embedded document, and key `]` to close it.
+Pass a list of alternately keys and values, suffix the key with `{` to start an embedded document, and use key `}` to close it. E.g.: with
+
+    d:=JSON(['a',1,'b{','x','foo','}','c{','x','bar','}','d',VarArrayOf([JSON(['x','hello']),JSON(['y','world'])]),'e',true]);
+
+`d.ToString` will return `{"a":1,"b":{"x":"foo"},"c":{"x":"bar"},"d":[{"x":"hello"},{"x":"world"}],"e":true}`.
+
+Convert a variant into an IJSONDocument reference.
 
     function JSON(x: OleVariant): IJSONDocument; overload;
 
-Use this overload to convert an OleVariant into an `IJSONDocument` reference:
+Depending on the value of the argument:
 
 * string types are parsed into a new `IJSONDocument` instance,
 * Null (or empty or unassigned) returns `nil`,
@@ -24,43 +32,82 @@ Use this overload to convert an OleVariant into an `IJSONDocument` reference:
 
 ### IJSONDocument
 
-    function Parse(const JSONData: WideString): IJSONDocument; safecall;
+Merge a string with JSON data into the `IJSONDocument` instance, existing keys will get their values overwritten (see `Clear` below).
 
-Convert a string with JSON data into the `IJSONDocument` instance.
-
-    function ToString: WideString; safecall;
+    function Parse(const JSONData: WideString): IJSONDocument;
 
 Convert the data in the `IJSONDocument` instance into a JSON string.
 
-    function ToVarArray:OleVariant; safecall;
+    function ToString: WideString;
 
-Convert the data in the `IJSONDocument` instance into a Variant array.
+Convert the data in the `IJSONDocument` instance into a Variant array of dimensions [0.._n_,0..1], where [_i_,0] holds keys and [_i_,1] holds values.
 
-    procedure Clear; safecall;
+    function ToVarArray:OleVariant;
 
-Clear the values of the `IJSONDocument`, but keep the list of keys. When processing a sequence of JSON documents with a similar set of keys (and keys of embedded documents), performance can be gained by avoiding the de- and re-allocation of memory to store the keys (and the Variant record for their values).
+Clear the values of the `IJSONDocument`, but keep the list of keys.
+
+    procedure Clear;
+
+When processing a sequence of JSON documents with a similar set of keys (and keys of embedded documents), performance can be gained by avoiding the de- and re-allocation of memory to store the keys (and the Variant record for their values). (See also `IJSONDocArrayBuilder` below).
+
+Retrieve a value by key. This is the default property, so you can access the keys of a `IJSONDocument` by index notation (e.g.: `d['id']`).
 
     property Item[const Key: WideString]: OleVariant; default;
 
-Get or set the value for a key. Notice this is the default property, so you can access the keys of a `IJSONDocument` by index notation (e.g.: `d['id']`)
+## Remarks
+
+**Attention:** the default `IJSONDocument` implementation: `TJSONDocument` is **not** thread-safe. Please use proper locking and synchronisation methods to ensure only one thread accesses an instance at one time, or use `jsonTS.pas`.
+
+### JSONEnum
+
+Create an `IJSONEnumerator` instance for a `IJSONDocument` reference.
+
+    function JSONEnum(x: IJSONDocument): IJSONEnumerator; overload;
+    function JSONEnum(const x: OleVariant): IJSONEnumerator; overload;
 
 ### IJSONEnumerator
 
-Use the `JSONEnum` function to create an `IJSONEnumerator` instance for a `IJSONDocument` reference.
+Check wether the enumerator is past the end of the set of keys of the document.
 
     function EOF: boolean;
 
-Checks wether the enumerator is past the end of the set. Use `EOF` on a new enumerator for skipping the iteration on an empty set.
+Move the iterator to the next item in the set. Moves the iterator to the first item on the first call. Returns false when moved past the end of the set.
 
     function Next: boolean;
 
-Moves the iterator to the next item in the set. Moves the iterator to the first item on the first call. Returns false when moved past the end of the set.
+Returns the key or value of the current item in the set.
 
     function Key: WideString;
     function Value: OleVariant;
 
 Returns the key or value of the current item in the set.
 
-## Remarks
+### JSONDocArray
 
-**Attention:** the default `IJSONDocument` implementation: `TJSONDocument` is **not** thread-safe. Please use proper locking and synchronisation methods to ensure only one thread accesses an instance at one time.
+Use an `IJSONDocArrayBuilder` instance to store a set of similar JSON documents. JSON is converted to and from strings internally to save on memory usage. Use `LoadItem` with a single `IJSONDocument` instance to re-use keys and save on memory allocation. Pre-load a parent `IJSONDocument` with an `IJSONDocArrayBuilder` instance to postpone some of the parsing of the children documents.
+
+    function JSONDocArray: IJSONDocArrayBuilder; overload;
+    function JSONDocArray(const Items:array of IJSONDocument): IJSONDocArrayBuilder; overload;
+
+### IJSONDocArrayBuilder
+
+Append a document to the array.
+
+    function Add(Doc: IJSONDocument): integer;
+    function AddJSON(const Data: WideString): integer;
+
+Retrieve a document using an existing `IJSONDocument` instance, possibly re-using allocated keys.
+
+    procedure LoadItem(Index: integer; Doc: IJSONDocument);
+
+Retrieve the number of documents in the array.
+
+    function Count: integer; stdcall;
+
+Convert the data in the `IJSONDocArrayBuilder` instance into a JSON string.
+
+    function ToString: WideString; stdcall;
+
+Retrieve a document by index, in a new `IJSONDocument` instance. This is the default property, so you can use index notation (e.g.: `a[3]`).
+
+    property Item[Idx: integer]: IJSONDocument; default;
