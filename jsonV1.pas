@@ -100,31 +100,36 @@ begin
   m:=TMemoryStream.Create;
   try
     m.LoadFromFile(FilePath);
-    //UTF-16
-    if (PAnsiChar(m.Memory)[0]=#$FF) and
-       (PAnsiChar(m.Memory)[1]=#$FE) then
-     begin
-      SetLength(w,i div 2);
-      Move(w[1],PAnsiChar(m.Memory)[2],i);
-     end
-    else
-    //UTF-8
-    if (PAnsiChar(m.Memory)[0]=#$EF) and
-       (PAnsiChar(m.Memory)[1]=#$BB) and
-       (PAnsiChar(m.Memory)[2]=#$BF) then
-     begin
-      m.Position:=m.Size;
-      i:=0;
-      m.Write(i,1);
-      w:=UTF8Decode(PAnsiChar(@PAnsiChar(m.Memory)[3]));
-     end
-    //ANSI
+    if m.Size=0 then
+      w:=''
     else
      begin
-      m.Position:=m.Size;
-      i:=0;
-      m.Write(i,1);
-      w:=PAnsiChar(m.Memory);
+      //UTF-16
+      if (PAnsiChar(m.Memory)[0]=#$FF) and
+         (PAnsiChar(m.Memory)[1]=#$FE) then
+       begin
+        SetLength(w,i div 2);
+        Move(w[1],PAnsiChar(m.Memory)[2],i);
+       end
+      else
+      //UTF-8
+      if (PAnsiChar(m.Memory)[0]=#$EF) and
+         (PAnsiChar(m.Memory)[1]=#$BB) and
+         (PAnsiChar(m.Memory)[2]=#$BF) then
+       begin
+        m.Position:=m.Size;
+        i:=0;
+        m.Write(i,1);
+        w:=UTF8Decode(PAnsiChar(@PAnsiChar(m.Memory)[3]));
+       end
+      //ANSI
+      else
+       begin
+        m.Position:=m.Size;
+        i:=0;
+        m.Write(i,1);
+        w:=PAnsiChar(m.Memory);
+       end;
      end;
   finally
     m.Free;
@@ -136,9 +141,10 @@ end;
 procedure TfrmJsonViewer.TreeView1Expanding(Sender: TObject;
   Node: TTreeNode; var AllowExpansion: Boolean);
 var
-  p:TJSONNode;
+  p,q:TJSONNode;
   v:OleVariant;
   i,j,k:integer;
+  ii:array of integer;
   x:IJSONDocument;
 begin
   p:=Node as TJSONNode;
@@ -154,7 +160,26 @@ begin
 //        else
          begin
           v:=p.Data[p.Key];
-          if p.Index<>-1 then v:=v[VarArrayLowBound(v,1)+p.Index];
+          i:=0;
+          if p.Index<>-1 then
+           begin
+            q:=p;
+            while (q<>nil) and (q.Index<>-1) do
+             begin
+              inc(i);
+              q:=q.Parent as TJSONNode;
+             end;
+            SetLength(ii,i);
+            q:=p;
+            while i<>0 do //while (q<>nil) and (q.Index<>-1) do
+             begin
+              dec(i);
+              ii[i]:=q.Index;
+              q:=q.Parent as TJSONNode;
+             end;
+            for i:=0 to Length(ii)-1 do
+              v:=v[VarArrayLowBound(v,1)+ii[i]];
+           end;
           //case VarType(v)
           if VarIsArray(v) then
            begin

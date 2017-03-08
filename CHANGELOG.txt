@@ -3,6 +3,7 @@ v1.1.0
 - JSON function: use '{' key suffix to start embedded document (instead of value '[')
 - IJSONDocument.ToString re-done using IJSONEnumerator
 - IJSONDocWithReUse to fix re-using pre-allocated keys
+- jsonV: now supports array as element in array
 
 v1.0.5
 - IJSONDocument.Delete

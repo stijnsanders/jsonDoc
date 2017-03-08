@@ -384,13 +384,16 @@ var
   const
     VicinityExtent=8;
   begin
-    if di<=VicinityExtent then
-      Result:=#13#10'(#'+IntToStr(di)+')"'+Copy(jsonData,1,di-1)+
-        ' >>> '+jsonData[di]+' <<< '+Copy(jsonData,di+1,VicinityExtent)+'"'
+    if l>VicinityExtent then
+      if di<=VicinityExtent then
+        Result:=#13#10'(#'+IntToStr(di)+')"'+Copy(jsonData,1,di-1)+
+          ' >>> '+jsonData[di]+' <<< '+Copy(jsonData,di+1,VicinityExtent)+'"'
+      else
+        Result:=#13#10'(#'+IntToStr(di)+')"...'+
+          Copy(jsonData,di-VicinityExtent,VicinityExtent)+
+          ' >>> '+jsonData[di]+' <<< '+Copy(jsonData,di+1,VicinityExtent)+'"'
     else
-      Result:=#13#10'(#'+IntToStr(di)+')"...'+
-        Copy(jsonData,di-VicinityExtent,VicinityExtent)+
-        ' >>> '+jsonData[di]+' <<< '+Copy(jsonData,di+1,VicinityExtent)+'"';
+      Result:=#13#10'(#'+IntToStr(di)+')"'+jsonData+'"';
   end;
   procedure Expect(c:WideChar;const msg:string);
   begin
