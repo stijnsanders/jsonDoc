@@ -330,7 +330,7 @@ begin
                   except
                     t:='?';
                   end;
-                  s:=s+' ('+IntToHex(vt,4)+') '+t;
+                  s:=s+' ('+VarTypeStr(vt)+') '+t;
                  end;
               end;
              end;
