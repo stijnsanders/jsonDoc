@@ -35,7 +35,7 @@ type
     Loaded:boolean;
     procedure AfterConstruction; override;
     procedure ShowValue(xData: IJSONDocument; const xKey: WideString;
-      xIndex: integer; const xValue: OleVariant);
+      xIndex: integer; const xValue: Variant);
   end;
 
 var
@@ -142,7 +142,7 @@ procedure TfrmJsonViewer.TreeView1Expanding(Sender: TObject;
   Node: TTreeNode; var AllowExpansion: Boolean);
 var
   p,q:TJSONNode;
-  v:OleVariant;
+  v:Variant;
   i,j,k:integer;
   ii:array of integer;
   x:IJSONDocument;
@@ -238,7 +238,7 @@ begin
   case vt and varTypeMask of
     varNull,varEmpty:Result:='null';
     varBoolean:Result:='bool';
-    varOleStr:Result:='str';
+    varOleStr,varString:Result:='str';
     varUnknown,varDispatch:Result:='obj';
     varShortInt:Result:='i8';
     varSmallint:Result:='i16';
@@ -260,7 +260,7 @@ begin
 end;
 
 procedure TJSONNode.ShowValue(xData: IJSONDocument; const xKey: WideString;
-  xIndex: integer; const xValue: OleVariant);
+  xIndex: integer; const xValue: Variant);
 var
   vt:TVarType;
   d:IJSONDocument;
@@ -289,7 +289,7 @@ begin
       //
       varNull,varEmpty:
         Text:=Text+' (null)';
-      varOleStr:
+      varOleStr,varString:
         Text:=Text+' (str) '+VarToStr(xValue);
       varBoolean:
         if xValue then
@@ -309,7 +309,7 @@ begin
               vt:=VarType(e.Value);
               case vt of
                 varNull,varEmpty:;//s:=s+': null';
-                varOleStr:
+                varOleStr,varString:
                  begin
                   t:=VarToStr(e.Value);
                   if Length(t)>30 then
@@ -356,7 +356,7 @@ end;
 procedure TfrmJsonViewer.EditCopyValue1Execute(Sender: TObject);
 var
   p:TJSONNode;
-  v:OleVariant;
+  v:Variant;
   d:IJSONDocument;
 begin
   if (TreeView1.Selected<>nil) and (TreeView1.Selected is TJSONNode) then
@@ -389,7 +389,7 @@ end;
 
 procedure TfrmJsonViewer.TreeView1DblClick(Sender: TObject);
 var
-  v:OleVariant;
+  v:Variant;
   p:TJSONNode;
   d:IJSONDocument;
 begin

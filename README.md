@@ -1,6 +1,6 @@
 # jsonDoc
 ## History
-_jsonDoc_ started out as _bsonDoc.pas_ and `IBSONDocument` in the [TMongoWire](https://github.com/stijnsanders/TMongoWire) project. Since it was a solid [JSON](http://json.org/) parser, based on IUnknowns (for the reference counting) and OleVariants (I really, really hate long lists of overloads for allkinds of types). I started to use _bsonDoc.pas_ and _bsonUtils.pas_ in several projects unrealted to [MongoDB](https://mongod.org/), so the idea surfaced to have a dedicated project that focusses on `IJSONDocument`.
+_jsonDoc_ started out as _bsonDoc.pas_ and `IBSONDocument` in the [TMongoWire](https://github.com/stijnsanders/TMongoWire) project. Since it was a solid [JSON](http://json.org/) parser, based on IUnknowns (for the reference counting) and Variants (I really, really hate long lists of overloads for allkinds of types). I started to use _bsonDoc.pas_ and _bsonUtils.pas_ in several projects unrelated to [MongoDB](https://mongod.org/), so the idea surfaced to have a dedicated project around `IJSONDocument`.
 
 ## API
 
@@ -12,7 +12,7 @@ To create a new `IJSONDocument` instance:
 
 To create and populate a new `IJSONDocument` instance:
 
-    function JSON(const x: array of OleVariant): IJSONDocument; overload;
+    function JSON(const x: array of Variant): IJSONDocument; overload;
 
 Pass a list of alternately keys and values, suffix the key with `{` to start an embedded document, and use key `}` to close it. E.g.: with
 
@@ -22,7 +22,7 @@ Pass a list of alternately keys and values, suffix the key with `{` to start an 
 
 Convert a variant into an IJSONDocument reference.
 
-    function JSON(x: OleVariant): IJSONDocument; overload;
+    function JSON(x: Variant): IJSONDocument; overload;
 
 Depending on the value of the argument:
 
@@ -42,7 +42,7 @@ Convert the data in the `IJSONDocument` instance into a JSON string.
 
 Convert the data in the `IJSONDocument` instance into a Variant array of dimensions [0.._n_,0..1], where [_i_,0] holds keys and [_i_,1] holds values.
 
-    function ToVarArray:OleVariant;
+    function ToVarArray: Variant;
 
 Clear the values of the `IJSONDocument`, but keep the list of keys.
 
@@ -52,18 +52,18 @@ When processing a sequence of JSON documents with a similar set of keys (and key
 
 Retrieve a value by key. This is the default property, so you can access the keys of a `IJSONDocument` by index notation (e.g.: `d['id']`).
 
-    property Item[const Key: WideString]: OleVariant; default;
+    property Item[const Key: WideString]: Variant; default;
 
 ## Remarks
 
-**Attention:** the default `IJSONDocument` implementation: `TJSONDocument` is **not** thread-safe. Please use proper locking and synchronisation methods to ensure only one thread accesses an instance at one time, or use `jsonTS.pas`.
+**Attention:** by default the `IJSONDocument` implementation: `TJSONDocument` is **not** thread-safe. Please use proper locking and synchronisation methods to ensure only one thread accesses an instance at one time, or declare conditional define `JSONDOC_THREADSAFE`.
 
 ### JSONEnum
 
 Create an `IJSONEnumerator` instance for a `IJSONDocument` reference.
 
     function JSONEnum(x: IJSONDocument): IJSONEnumerator; overload;
-    function JSONEnum(const x: OleVariant): IJSONEnumerator; overload;
+    function JSONEnum(const x: Variant): IJSONEnumerator; overload;
 
 ### IJSONEnumerator
 
@@ -78,7 +78,7 @@ Move the iterator to the next item in the set. Moves the iterator to the first i
 Returns the key or value of the current item in the set.
 
     function Key: WideString;
-    function Value: OleVariant;
+    function Value: Variant;
 
 Returns the key or value of the current item in the set.
 
@@ -111,3 +111,11 @@ Convert the data in the `IJSONDocArrayBuilder` instance into a JSON string.
 Retrieve a document by index, in a new `IJSONDocument` instance. This is the default property, so you can use index notation (e.g.: `a[3]`).
 
     property Item[Idx: integer]: IJSONDocument; default;
+
+### IJSONArray
+
+If you need to process documents that contain many and/or large arrays, some performance may get lost because manipulating Variant arrays performs a deep copy on assignment by default.
+
+To prevent this, set the `JSON_UseIJSONArray` value to true to have `IJSONDocument` use `IJSONArray` instances to hold arrays, which use reference counting instead of deep copy on assignment.
+
+A downside to this is that plain array-indexing (`a[i]`) no longer works. (The `VariantManager` which could provide support for this, is deprecated in Delphi since version 7.) Use the `ja` function to conveniently extract a `IJSONArray` reference from a variable of type Variant (`ja(a)[i]`).

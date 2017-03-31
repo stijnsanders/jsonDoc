@@ -1,3 +1,10 @@
+v1.1.1
+- switch from OleVariant to Variant
+- absorbed jsonTS.pas as conditional define JSONDOC_THREADSAFE
+- thread-un-safe also skips on locking when reference counting (should improve performance)
+- some internal revision to avoid VarCopyDeep where possible (should improve performance)
+- IJSONArray interface, ja function, JSON_UseIJSONArray global
+
 v1.1.0
   ### ATTENTION!!! breaking change: ###
 - JSON function: use '{' key suffix to start embedded document (instead of value '[')

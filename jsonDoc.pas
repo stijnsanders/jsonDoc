@@ -6,14 +6,14 @@ Copyright 2015-2017 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
-v1.1.0
+v1.1.1
 
 }
 unit jsonDoc;
 
 {$WARN SYMBOL_PLATFORM OFF}
-{$D-}
-{$L-}
+{xxx$D-}
+{xxx$L-}
 
 {
 
@@ -25,6 +25,12 @@ Define here or in the project settings
 
   JSONDOC_STOREINDENTING
     to make ToString write indentation EOL's and tabs
+
+  JSONDOC_THREADSAFE
+    to make IJSONDocument instances thread-safe
+
+  JSONDOC_DEFAULT_USE_IJSONARRAY
+    to set JSON_UseIJSONArray to true by default
 
 }
 
@@ -43,10 +49,12 @@ const
     : TGUID = '{4A534F4E-0001-0003-C000-000000000003}';
   IID_IJSONEnumerable
     : TGUID = '{4A534F4E-0001-0004-C000-000000000004}';
-  IID_IJSONDocArrayBuilder
+  IID_IJSONArray
     : TGUID = '{4A534F4E-0001-0005-C000-000000000005}';
-  IID_IJSONDocWithReUse
+  IID_IJSONDocArray
     : TGUID = '{4A534F4E-0001-0006-C000-000000000006}';
+  IID_IJSONDocWithReUse
+    : TGUID = '{4A534F4E-0001-0007-C000-000000000007}';
 
 type
 {
@@ -61,13 +69,13 @@ type
 }
   IJSONDocument = interface(IUnknown)
     ['{4A534F4E-0001-0001-C000-000000000001}']
-    function Get_Item(const Key: WideString): OleVariant; stdcall;
-    procedure Set_Item(const Key: WideString; const Value: OleVariant); stdcall;
+    function Get_Item(const Key: WideString): Variant; stdcall;
+    procedure Set_Item(const Key: WideString; const Value: Variant); stdcall;
     function Parse(const JSONData: WideString): IJSONDocument; stdcall;
     function ToString: WideString; stdcall;
-    function ToVarArray:OleVariant; stdcall;
+    function ToVarArray: Variant; stdcall;
     procedure Clear; stdcall;
-    property Item[const Key: WideString]: OleVariant
+    property Item[const Key: WideString]: Variant
       read Get_Item write Set_Item; default;
     procedure Delete(const Key: WideString); stdcall;
   end;
@@ -83,10 +91,11 @@ type
     function EOF: boolean; stdcall;
     function Next: boolean; stdcall;
     function Get_Key: WideString; stdcall;
-    function Get_Value: OleVariant; stdcall;
-    procedure Set_Value(const Value: OleVariant); stdcall;
+    function Get_Value: Variant; stdcall;
+    procedure Set_Value(const Value: Variant); stdcall;
+    function v0: pointer; stdcall;
     property Key: WideString read Get_Key;
-    property Value: OleVariant read Get_Value write Set_Value;
+    property Value: Variant read Get_Value write Set_Value;
   end;
 
 {
@@ -100,24 +109,37 @@ type
   end;
 
 {
-  IJSONDocArrayBuilder interface
-  use IJSONDocArrayBuilder to build an array of similar documents,
+  IJSONArray interface
+  When using VarArrayOf (declared in Variants.pas), a SafeArray is
+  used internally for storage, but as a variant value VarCopy is called
+  with each use, creating duplicate (deep) copies of the SafeArray.
+  Use IJSONArray (and the ja function) to create a IJSONArray instance
+  that uses a single copy of the data. It is also reference counted,
+  which automates memory clean-up.
+}
+  IJSONArray = interface(IUnknown)
+    ['{4A534F4E-0001-0005-C000-000000000005}']
+    function Get_Item(Index: integer): Variant; stdcall;
+    procedure Set_Item(Index: integer; const Value: Variant); stdcall;
+    function Count: integer; stdcall;
+    function ToString: WideString; stdcall;
+    function v0(Index: integer): pointer; stdcall;
+    property Item[Idx: integer]: Variant read Get_Item write Set_Item; default;
+  end;
+
+{
+  IJSONDocArray interface
+  use IJSONDocArray to build an array of similar documents,
   ideally in combination with a single IJSONDocument instance and
   IJSONDocument.Clear to re-use the memory allocated for keys and values
   see also: JSONDocArr function
 }
-  IJSONDocArrayBuilder = interface(IUnknown)
-    ['{4A534F4E-0001-0005-C000-000000000005}']
-    function Get_Item(Index: integer): IJSONDocument; stdcall;
-    procedure Set_Item(Index: integer; Doc: IJSONDocument); stdcall;
-    function Add(Doc: IJSONDocument): integer; stdcall;
-    function AddJSON(const Data: WideString): integer; stdcall;
-    procedure LoadItem(Index: integer; Doc: IJSONDocument); stdcall;
-    function Count: integer; stdcall;
-    function ToString: WideString; stdcall;
+  IJSONDocArray = interface(IJSONArray)
+    ['{4A534F4E-0001-0006-C000-000000000006}']
+    function Add(const Doc: IJSONDocument): integer; stdcall;
+    function AddJson(const Data: WideString): integer; stdcall;
+    procedure LoadItem(Index: integer; const Doc: IJSONDocument); stdcall;
     procedure Clear; stdcall;
-    property Item[Idx: integer]: IJSONDocument
-      read Get_Item write Set_Item; default;
   end;
 
 {
@@ -126,95 +148,9 @@ type
   see also: TJSONDocument Parse and Clear
 }
   IJSONDocWithReUse = interface(IUnknown)
-    ['{4A534F4E-0001-0006-C000-000000000006}']
-    function ReUse(const Key: WideString): OleVariant; stdcall;
+    ['{4A534F4E-0001-0007-C000-000000000007}']
+    function ReUse(const Key: WideString): Variant; stdcall;
   end;
-
-{
-  TJSONDocument class
-  the default IJSONDocument implementation
-  see also: JSON function
-}
-  TJSONDocument = class(TInterfacedObject, IJSONDocument,
-    IJSONEnumerable, IJSONDocWithReUse)
-  private
-    FElementIndex,FElementSize:integer;
-    FElements:array of record
-      SortIndex,LoadIndex:integer;
-      Key:WideString;
-      Value:OleVariant;
-    end;
-    FLoadIndex,FGotIndex,FGotSorted:integer;
-    FGotMatch:boolean;
-    function GetKeyIndex(const Key: WideString): boolean;
-  protected
-    function Get_Item(const Key: WideString): OleVariant; stdcall;
-    procedure Set_Item(const Key: WideString; const Value: OleVariant); stdcall;
-    function ReUse(const Key: WideString): OleVariant; stdcall;
-  public
-    procedure AfterConstruction; override;
-    destructor Destroy; override;
-    function Parse(const JSONData: WideString): IJSONDocument; stdcall;
-    function JSONToString: WideString; stdcall;
-    function IJSONDocument.ToString=JSONToString;
-    function ToVarArray:OleVariant; stdcall;
-    procedure Clear; stdcall;
-    property Item[const Key: WideString]: OleVariant
-      read Get_Item write Set_Item; default;
-    function NewEnumerator: IJSONEnumerator; stdcall;
-    procedure Delete(const Key: WideString); stdcall;
-  end;
-
-{
-  TJSONEnumerator class
-  the default IJSONEnumerator implementation
-  see also: JSONEnum function
-}
-  TJSONEnumerator = class(TInterfacedObject, IJSONEnumerator)
-  private
-    FData:TJSONDocument;
-    FIndex: integer;
-  public
-    constructor Create(Data: TJSONDocument);
-    destructor Destroy; override;
-    function EOF: boolean; stdcall;
-    function Next: boolean; stdcall;
-    function Get_Key: WideString; stdcall;
-    function Get_Value: OleVariant; stdcall;
-    procedure Set_Value(const Value: OleVariant); stdcall;
-  end;
-
-{
-  TJSONDocArrayBuilder class
-  the default IJSONDocArrayBuilder implementation
-  see also: JSONDocArr function
-}
-  TJSONDocArrayBuilder = class(TInterfacedObject, IJSONDocArrayBuilder)
-  private
-    FItems:array of WideString;
-    FItemsCount,FItemsSize,FTotalLength:integer;
-  protected
-    function Get_Item(Index: integer): IJSONDocument; stdcall;
-    procedure Set_Item(Index: integer; Doc: IJSONDocument); stdcall;
-    function Add(Doc: IJSONDocument): integer; stdcall;
-    function AddJSON(const Data: WideString): integer; stdcall;
-    procedure LoadItem(Index: integer; Doc: IJSONDocument); stdcall;
-    function JSONToString: WideString; stdcall;
-    function IJSONDocArrayBuilder.ToString=JSONToString;
-    function Count: integer; stdcall;
-    procedure Clear; stdcall;
-  public
-    constructor Create;
-    destructor Destroy; override;
-  end;
-
-{
-  EJSONException class types
-  exception types thrown from TJSONDocument's Parse and ToString
-}
-  EJSONException=class(Exception);
-  EJSONDecodeException=class(EJSONException);
-  EJSONEncodeException=class(EJSONException);
 
 {
   JSON function: JSON document factory
@@ -228,7 +164,7 @@ function JSON: IJSONDocument; overload;
   suffix key with opening brace to start an embedded document,
   and key of a single closing brace to close it.
 }
-function JSON(const x: array of OleVariant): IJSONDocument; overload;
+function JSON(const x: array of Variant): IJSONDocument; overload;
 
 {
   JSON function: JSON document converter
@@ -236,29 +172,323 @@ function JSON(const x: array of OleVariant): IJSONDocument; overload;
   or a string with JSON parsed into a IJSONDocument
   or nil when VarIsNull
 }
-function JSON(const x: OleVariant): IJSONDocument; overload;
+function JSON(const x: Variant): IJSONDocument; overload;
 
 {
   JSONEnum function
   get a new enumerator to enumeratare the key-value pairs in the document
 }
-function JSONEnum(x: IJSONDocument): IJSONEnumerator; overload; //inline;
-function JSONEnum(const x: OleVariant): IJSONEnumerator; overload;
-function JSON(x: IJSONEnumerator): IJSONDocument; overload; //inline;
-function JSONEnum(x: IJSONEnumerator): IJSONEnumerator; overload; //inline;
+function JSONEnum(const x: IJSONDocument): IJSONEnumerator; overload; //inline;
+function JSONEnum(const x: Variant): IJSONEnumerator; overload;
+function JSON(const x: IJSONEnumerator): IJSONDocument; overload; //inline;
+function JSONEnum(const x: IJSONEnumerator): IJSONEnumerator; overload; //inline;
+
+{
+  ja function
+  create and populate a new IJSONArray instance
+  or cast a Variant holding a JSONArray instance to the interface reference
+}
+function ja(const Items:array of Variant): IJSONArray; overload;
+function ja(const Item:Variant): IJSONArray; overload;
 
 {
   JSONDocArray function
-  get a new IJSONDocArrayBuilder
+  get a new IJSONDocArray instance
 }
-function JSONDocArray: IJSONDocArrayBuilder; overload;
-function JSONDocArray(const Items:array of IJSONDocument):
-  IJSONDocArrayBuilder; overload;
+function JSONDocArray: IJSONDocArray; overload;
+function JSONDocArray(const Items:array of IJSONDocument): IJSONDocArray; overload;
+
+
+{
+  JSON_UseIJSONArray
+  switch JSON so it will create IJSONArray instances to hold arrays of values
+  instead of VarArrayCreate, default false
+  see also TJSONDocument.UseIJSONArray property
+}
+var
+  JSON_UseIJSONArray: boolean;
+
+{
+  TJSONImplBaseObj
+  common base object JSON implementation objects inherit
+  don't use directly
+}
+type
+
+{$IFDEF JSONDOC_THREADSAFE}
+  TJSONImplBaseObj = class(TInterfacedObject)
+  protected
+    FLock:TRTLCriticalSection;
+  public
+    procedure AfterConstruction; override;
+    destructor Destroy; override;
+  end;
+
+{$ELSE}
+  //thread-unsafe anyway, so avoid locking when reference counting:
+  TJSONImplBaseObj = class(TObject, IInterface)
+  protected
+    FRefCount: Integer;
+    function QueryInterface(const IID: TGUID; out Obj): HResult; stdcall;
+    function _AddRef: Integer; stdcall;
+    function _Release: Integer; stdcall;
+  public
+    procedure AfterConstruction; override;
+    procedure BeforeDestruction; override;
+    class function NewInstance: TObject; override;
+    property RefCount: Integer read FRefCount;
+  end;
+
+{$ENDIF}
+
+{
+  TJSONDocument class
+  the default IJSONDocument implementation
+  see also: JSON function
+}
+  TJSONDocument = class(TJSONImplBaseObj, IJSONDocument, IJSONEnumerable,
+    IJSONDocWithReUse)
+  private
+    FElementIndex,FElementSize:integer;
+    FElements:array of record
+      SortIndex,LoadIndex:integer;
+      Key:WideString;
+      Value:Variant;
+    end;
+    FLoadIndex:integer;
+    {$IFNDEF JSONDOC_THREADSAFE}
+    FGotIndex,FGotSorted:integer;
+    FGotMatch:boolean;
+    {$ENDIF}
+    FUseIJSONArray:boolean;
+    function GetKeyIndex(const Key: WideString;
+      var GotIndex: integer; var GotSorted: integer): boolean;
+  protected
+    function Get_Item(const Key: WideString): Variant; stdcall;
+    procedure Set_Item(const Key: WideString; const Value: Variant); stdcall;
+    function ReUse(const Key: WideString): Variant; stdcall;
+  public
+    procedure AfterConstruction; override;
+    destructor Destroy; override;
+    function Parse(const JSONData: WideString): IJSONDocument; stdcall;
+    function JSONToString: WideString; stdcall;
+    function IJSONDocument.ToString=JSONToString;
+    function ToVarArray: Variant; stdcall;
+    procedure Clear; stdcall;
+    function NewEnumerator: IJSONEnumerator; stdcall;
+    procedure Delete(const Key: WideString); stdcall;
+    property Item[const Key: WideString]: Variant
+      read Get_Item write Set_Item; default;
+    property UseIJSONArray:boolean read FUseIJSONArray write FUseIJSONArray;
+  end;
+
+{
+  TJSONEnumerator class
+  the default IJSONEnumerator implementation
+  see also: JSONEnum function
+}
+  TJSONEnumerator = class(TJSONImplBaseObj, IJSONEnumerator)
+  private
+    FData:TJSONDocument;
+    FIndex: integer;
+  public
+    constructor Create(Data: TJSONDocument);
+    destructor Destroy; override;
+    function EOF: boolean; stdcall;
+    function Next: boolean; stdcall;
+    function Get_Key: WideString; stdcall;
+    function Get_Value: Variant; stdcall;
+    procedure Set_Value(const Value: Variant); stdcall;
+    function v0: pointer; stdcall;
+  end;
+
+{
+  TJSONArray class
+  Default ILightArray implementation
+}
+  TJSONArray = class(TJSONImplBaseObj, IJSONArray)
+  private
+    FData:array of Variant;
+  protected
+    function Get_Item(Index: integer): Variant; stdcall;
+    procedure Set_Item(Index: integer; const Value: Variant); stdcall;
+    function Count: integer; stdcall;
+    function JSONToString: WideString; stdcall;
+    function IJSONArray.ToString=JSONToString;
+    function v0(Index: integer): pointer; stdcall;
+  public
+    constructor Create(Size: integer);
+  end;
+
+{
+  TJSONArrayEnumerator
+  an IJSONEnumerator implementation that iterates over a variant array
+  used internally to convert to JSON
+}
+  TJSONArrayEnumerator= class(TJSONImplBaseObj, IJSONEnumerator)
+  private
+    FData:IJSONArray;
+    FIndex,FMax:integer;
+  public
+    constructor Create(const Data:IJSONArray);
+    destructor Destroy; override;
+    function EOF: boolean; stdcall;
+    function Next: boolean; stdcall;
+    function Get_Key: WideString; stdcall;
+    function Get_Value: Variant; stdcall;
+    procedure Set_Value(const Value: Variant); stdcall;
+    function v0: pointer; stdcall;
+  end;
+
+{
+  TJSONDocArray class
+  the default IJSONDocArray implementation
+  see also: JSONDocArray function
+}
+  TJSONDocArray = class(TJSONImplBaseObj, IJSONArray, IJSONDocArray)
+  private
+    FItems:array of WideString;
+    FItemsCount,FItemsSize,FTotalLength,FCurrentIndex:integer;
+    FCurrent:Variant;
+  protected
+    //IJSONArray
+    function Get_Item(Index: integer): Variant; stdcall;
+    procedure Set_Item(Index: integer; const Value: Variant); stdcall;
+    function Count: integer; stdcall;
+    function ToString: WideString; stdcall;
+    function v0(Index: integer): pointer; stdcall;
+    //function IJSONArray.ToString=JSONToString;
+    //IJSONDocArray
+    function Add(const Doc: IJSONDocument): integer; stdcall;
+    function AddJson(const Data: WideString): integer; stdcall;
+    procedure LoadItem(Index: integer; const Doc: IJSONDocument); stdcall;
+    procedure Clear; stdcall;
+  public
+    constructor Create;
+    destructor Destroy; override;
+  end;
+
+{
+  TVarArrayEnumerator
+  an IJSONEnumerator implementation that iterates over a variant array
+  used internally to convert to JSON
+}
+  TVarArrayEnumerator = class(TJSONImplBaseObj, IJSONEnumerator)
+  private
+    FData:PVariant;
+    FCurrent:Variant;
+    FIndex,FMax,FCurrentIndex:integer;
+  public
+    constructor Create(const Data:PVariant);
+    destructor Destroy; override;
+    function EOF: boolean; stdcall;
+    function Next: boolean; stdcall;
+    function Get_Key: WideString; stdcall;
+    function Get_Value: Variant; stdcall;
+    procedure Set_Value(const Value: Variant); stdcall;
+    function v0: pointer; stdcall;
+  end;
+
+{
+  TVarJSONArray
+  an IJSONArray implementation that works on an existing variant array
+  used internally by the ja function
+}
+  TVarJSONArray = class(TJSONImplBaseObj, IJSONArray)
+  private
+    FData,FCurrent:Variant;
+    v1,v2,FCurrentIndex:integer;
+  protected
+    function Get_Item(Index: integer): Variant; stdcall;
+    procedure Set_Item(Index: integer; const Value: Variant); stdcall;
+    function Count: integer; stdcall;
+    function JSONToString: WideString; stdcall;
+    function IJSONArray.ToString=JSONToString;
+    function v0(Index: integer): pointer; stdcall;
+  public
+    constructor Create(const Data: Variant);
+    constructor CreateNoCopy(var Data: Variant);
+    destructor Destroy; override;
+  end;
+
+{
+  EJSONException class types
+  exception types thrown from TJSONDocument's Parse and ToString
+}
+  EJSONException=class(Exception);
+  EJSONDecodeException=class(EJSONException);
+  EJSONEncodeException=class(EJSONException);
+
 
 implementation
 
 uses
-  Classes, Variants;
+  Classes, Variants, Windows;
+
+procedure VarMove(var Dest, Src: Variant);
+begin
+  //Dest:=Src;VarClear(Src);
+  Move(Src,Dest,SizeOf(TVarData));
+  ZeroMemory(@Src,SizeOf(TVarData));
+end;
+
+{ TJSONImplBaseObj }
+
+{$IFDEF JSONDOC_THREADSAFE}
+
+procedure TJSONImplBaseObj.AfterConstruction;
+begin
+  inherited;
+  InitializeCriticalSection(FLock);
+end;
+
+destructor TJSONImplBaseObj.Destroy;
+begin
+  DeleteCriticalSection(FLock);
+  inherited;
+end;
+
+{$ELSE}
+
+procedure TJSONImplBaseObj.AfterConstruction;
+begin
+  inherited;
+  dec(FRefCount);//see constructor
+end;
+
+procedure TJSONImplBaseObj.BeforeDestruction;
+begin
+  inherited;
+  if RefCount<>0 then System.Error(reInvalidPtr);
+end;
+
+class function TJSONImplBaseObj.NewInstance: TObject;
+begin
+  Result:=inherited NewInstance;
+  //see AfterConstruction, prevent detroy while creating
+  TJSONImplBaseObj(Result).FRefCount:=1;
+end;
+
+function TJSONImplBaseObj.QueryInterface(const IID: TGUID;
+  out Obj): HResult;
+begin
+  if GetInterface(IID,Obj) then Result:=0 else Result:=E_NOINTERFACE;
+end;
+
+function TJSONImplBaseObj._AddRef: Integer;
+begin
+  inc(FRefCount);
+  Result:=FRefCount;
+end;
+
+function TJSONImplBaseObj._Release: Integer;
+begin
+  dec(FRefCount);
+  Result:=FRefCount;
+  if Result=0 then Destroy;
+end;
+
+{$ENDIF}
 
 { TJSONDocument }
 
@@ -267,10 +497,13 @@ begin
   inherited;
   FElementIndex:=0;
   FElementSize:=0;
+  FLoadIndex:=0;
+  {$IFNDEF JSONDOC_THREADSAFE}
   FGotIndex:=0;
   FGotSorted:=0;
   FGotMatch:=false;
-  FLoadIndex:=0;
+  {$ENDIF}
+  FUseIJSONArray:=JSON_UseIJSONArray;
 end;
 
 destructor TJSONDocument.Destroy;
@@ -281,23 +514,28 @@ begin
   inherited;
 end;
 
-function TJSONDocument.GetKeyIndex(const Key: WideString):boolean;
+function TJSONDocument.GetKeyIndex(const Key: WideString;
+  var GotIndex: integer; var GotSorted: integer): boolean;
 var
   a,b,c,d,x:integer;
 begin
   //case sensitivity?
+  {$IFNDEF JSONDOC_THREADSAFE}
   //check last getindex, speeds up set right after get
   if FGotMatch and (CompareStr(Key,FElements[FGotIndex].Key)=0) then
    begin
     //assert FGotIndex=FSorted[FGotSorted];
+    GotIndex:=FGotIndex;
+    GotSorted:=FGotSorted;
     Result:=true;
    end
   else
+  {$ENDIF}
    begin
     a:=0;
     b:=FElementIndex-1;
     d:=FElementIndex;
-    FGotMatch:=false;//default
+    Result:=false;//default
     while b>=a do
      begin
       c:=(a+b) div 2;
@@ -308,7 +546,7 @@ begin
        begin
         a:=c;
         b:=c-1;
-        FGotMatch:=true;
+        Result:=true;
        end
       else
         if x<0 then
@@ -316,60 +554,93 @@ begin
         else
           if a=c then inc(a) else a:=c;
      end;
+    GotSorted:=a;
+    GotIndex:=d;
+    {$IFNDEF JSONDOC_THREADSAFE}
     FGotSorted:=a;
     FGotIndex:=d;
-    Result:=FGotMatch;
+    FGotMatch:=Result;
+    {$ENDIF}
    end;
 end;
 
-function TJSONDocument.Get_Item(const Key: WideString): OleVariant;
-begin
-  if (Self<>nil) and GetKeyIndex(Key)
-    and (FElements[FGotIndex].LoadIndex=FLoadIndex) then
-    Result:=FElements[FGotIndex].Value
-  else
-    Result:=Null;
-end;
-
-function TJSONDocument.ReUse(const Key: WideString): OleVariant;
-begin
-  if (Self<>nil) and GetKeyIndex(Key) then
-   begin
-    FElements[FGotIndex].LoadIndex:=FLoadIndex;
-    Result:=FElements[FGotIndex].Value;
-   end
-  else
-    Result:=Null;
-end;
-
-procedure TJSONDocument.Set_Item(const Key: WideString;
-  const Value: OleVariant);
+function TJSONDocument.Get_Item(const Key: WideString): Variant;
 var
-  i:integer;
+  GotIndex,GotSorted:integer;
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    if (Self<>nil) and GetKeyIndex(Key,GotIndex,GotSorted)
+      and (FElements[GotIndex].LoadIndex=FLoadIndex) then
+      Result:=FElements[GotIndex].Value
+    else
+      Result:=Null;
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
+function TJSONDocument.ReUse(const Key: WideString): Variant;
+var
+  GotIndex,GotSorted:integer;
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    if (Self<>nil) and GetKeyIndex(Key,GotIndex,GotSorted) then
+     begin
+      FElements[GotIndex].LoadIndex:=FLoadIndex;
+      Result:=FElements[GotIndex].Value;
+     end
+    else
+      Result:=Null;
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
+procedure TJSONDocument.Set_Item(const Key: WideString; const Value: Variant);
+var
+  i,GotIndex,GotSorted:integer;
 const
   GrowStep=$20;//not too much, not too little (?)
 begin
-  //if ((VarType(Value) and varArray)<>0) and (VarArrayDimCount(v)>1) then
-  //  raise EJSONException.Create(
-  //    'VarArray: multi-dimensional arrays not supported');
-  if not GetKeyIndex(Key) then
-   begin
-    if FElementIndex=FElementSize then
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    //if ((VarType(Value) and varArray)<>0) and (VarArrayDimCount(v)>1) then
+    //  raise EJSONException.Create(
+    //    'VarArray: multi-dimensional arrays not supported');
+    if not GetKeyIndex(Key,GotIndex,GotSorted) then
      begin
-      inc(FElementSize,GrowStep);
-      SetLength(FElements,FElementSize);
+      if FElementIndex=FElementSize then
+       begin
+        inc(FElementSize,GrowStep);
+        SetLength(FElements,FElementSize);
+       end;
+      for i:=FElementIndex-1 downto GotSorted do
+        FElements[i+1].SortIndex:=FElements[i].SortIndex;
+      GotIndex:=FElementIndex;
+      inc(FElementIndex);
+      FElements[GotSorted].SortIndex:=GotIndex;
+      FElements[GotIndex].Key:=Key;
      end;
-    for i:=FElementIndex-1 downto FGotSorted do
-      FElements[i+1].SortIndex:=FElements[i].SortIndex;
-    FGotIndex:=FElementIndex;
-    inc(FElementIndex);
-    FElements[FGotSorted].SortIndex:=FGotIndex;
-    FElements[FGotIndex].Key:=Key;
-   end;
-  FElements[FGotIndex].Value:=Value;
-  FElements[FGotIndex].LoadIndex:=FLoadIndex;
-  //TODO: if VarType(Value)=varEmpty then drop element
-  //FDirty:=true;
+    FElements[GotIndex].Value:=Value;
+    FElements[GotIndex].LoadIndex:=FLoadIndex;
+    //FDirty:=true;
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
 end;
 
 function TJSONDocument.Parse(const JSONData: WideString): IJSONDocument;
@@ -384,16 +655,13 @@ var
   const
     VicinityExtent=8;
   begin
-    if l>VicinityExtent then
-      if di<=VicinityExtent then
-        Result:=#13#10'(#'+IntToStr(di)+')"'+Copy(jsonData,1,di-1)+
-          ' >>> '+jsonData[di]+' <<< '+Copy(jsonData,di+1,VicinityExtent)+'"'
-      else
-        Result:=#13#10'(#'+IntToStr(di)+')"...'+
-          Copy(jsonData,di-VicinityExtent,VicinityExtent)+
-          ' >>> '+jsonData[di]+' <<< '+Copy(jsonData,di+1,VicinityExtent)+'"'
+    if di<=VicinityExtent then
+      Result:=#13#10'(#'+IntToStr(di)+')"'+Copy(jsonData,1,di-1)+
+        ' >>> '+jsonData[di]+' <<< '+Copy(jsonData,di+1,VicinityExtent)+'"'
     else
-      Result:=#13#10'(#'+IntToStr(di)+')"'+jsonData+'"';
+      Result:=#13#10'(#'+IntToStr(di)+')"...'+
+        Copy(jsonData,di-VicinityExtent,VicinityExtent)+
+        ' >>> '+jsonData[di]+' <<< '+Copy(jsonData,di+1,VicinityExtent)+'"';
   end;
   procedure Expect(c:WideChar;const msg:string);
   begin
@@ -466,16 +734,15 @@ const
   stackGrowStep=$20;//not too much, not too little (?)
   arrGrowStep=$20;
 var
-  InObjectOrArray:boolean;
+  IsArray:boolean;
   k1,k2,v1,v2,a1,ai,al:integer;
   d:IJSONDocument;
-  a:array of OleVariant;
-  at:TVarType;
-  procedure SetValue(const v:OleVariant);
+  a:array of Variant;
+  at,vt:TVarType;
+  procedure SetValue(const v:Variant);
   begin
-    if InObjectOrArray then
-      d[GetStringValue(k1,k2)]:=v
-    else
+    //assert da=nil
+    if IsArray then
      begin
       if ai=al then
        begin
@@ -483,49 +750,34 @@ var
         SetLength(a,al);
        end;
       a[ai]:=v;
-      //assert (VarType(v) and varArray)=0
       //detect same type elements array
-      if at=varEmpty then at:=VarType(v) else
+      vt:=TVarData(v).VType;
+      if at=varEmpty then at:=vt else
         case at of
           //TODO: what with signed/unsigned mixed?
           varSmallint://i2
-            if not(VarType(v) in [varSmallint,
+            if not(vt in [varSmallint,
               varShortInt,varByte]) then at:=varVariant;
           varInteger://i4
-            if not(VarType(v) in [varSmallint,
+            if not(vt in [varSmallint,
               varInteger,varShortInt,varByte,varWord]) then at:=varVariant;
           varWord:
-            if not(VarType(v) in [varSmallint,
+            if not(vt in [varSmallint,
               varByte,varWord]) then at:=varVariant;
           varLongWord:
-            if not(VarType(v) in [varSmallint,
+            if not(vt in [varSmallint,
               varShortInt,varByte,varWord,varLongWord]) then at:=varVariant;
           varInt64:
-            if not(VarType(v) in [varSmallint,varInteger,varShortInt,
+            if not(vt in [varSmallint,varInteger,varShortInt,
               varByte,varWord,varLongWord,varInt64]) then at:=varVariant;
           varVariant:;//Already creating an VarArray of variants
           //TODO: more?
-          else if at<>VarType(v) then at:=varVariant;
+          else if at<>vt then at:=varVariant;
         end;
       inc(ai);
-     end;
-  end;
-  function GetArrayValue:OleVariant;
-  var
-    ii,jj:integer;
-  begin
-    if not(VarTypeIsValidArrayType(at)) then at:=varVariant;
-    Result:=VarArrayCreate([0,ai-a1-1],at);
-    ii:=a1;
-    jj:=0;
-    while ii<ai do
-     begin
-      Result[jj]:=a[ii];
-      VarClear(a[ii]);
-      inc(ii);
-      inc(jj);
-     end;
-    ai:=a1;
+     end
+    else
+      d[GetStringValue(k1,k2)]:=v
   end;
 var
   firstItem,b:boolean;
@@ -538,409 +790,523 @@ var
   key:WideString;
   d1:IJSONDocument;
   dr:IJSONDocWithReUse;
-  da:IJSONDocArrayBuilder;
+  da:IJSONDocArray;
+  aa:TJSONArray;
   da0,da1:integer;
-  v:OleVariant;
+  v:Variant;
   v64:int64;
+  procedure CheckValue;
+  begin
+    //assert da<>nil
+    if stackIndex=da0 then
+      raise EJSONDecodeException.Create('IJSONDocArray: non-document element in array');
+  end;
 begin
-  //Clear;? let caller decide.
-  i:=1;
-  l:=Length(jsonData);
-  //object starts
-  Expect('{','JSON doesn''t define an object, "{" expected.');
-  stackSize:=0;
-  stackIndex:=0;
-  ai:=0;
-  al:=0;
-  da:=nil;
-  da0:=0;
-  da1:=0;
-  InObjectOrArray:=true;
-  firstItem:=true;
-
-  {$if CompilerVersion >= 24}
-  ods:=FormatSettings.DecimalSeparator;
-  {$else}
-  ods:=DecimalSeparator;
-  {$ifend}
-
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
   try
+  {$ENDIF}
+    //Clear;? let caller decide.
+    i:=1;
+    l:=Length(jsonData);
+    //object starts
+    Expect('{','JSON doesn''t define an object, "{" expected.');
+    stackSize:=0;
+    stackIndex:=0;
+    ai:=0;
+    a1:=0;
+    al:=0;
+    da:=nil;
+    da0:=0;
+    da1:=0;
+    IsArray:=false;
+    firstItem:=true;
 
     {$if CompilerVersion >= 24}
-    FormatSettings.DecimalSeparator:='.';
+    ods:=FormatSettings.DecimalSeparator;
     {$else}
-    DecimalSeparator:='.';
+    ods:=DecimalSeparator;
     {$ifend}
 
-    d:=Self;
-    //main loop over key/values and nested objects/arrays
-    while (i<=l) and (stackIndex<>-1) do
-     begin
-      if firstItem then firstItem:=false else
-        Expect(',','JSON element not delimited by comma');
-      if InObjectOrArray and (SkipWhiteSpace<>'}') then
+    try
+
+      {$if CompilerVersion >= 24}
+      FormatSettings.DecimalSeparator:='.';
+      {$else}
+      DecimalSeparator:='.';
+      {$ifend}
+
+      d:=Self;
+      //main loop over key/values and nested objects/arrays
+      while (i<=l) and (stackIndex<>-1) do
        begin
-        //key string
-        {$IFDEF JSONDOC_JSON_STRICT}
-        Expect('"','JSON key string not enclosed in double quotes');
-        GetStringIndexes(k1,k2);
-        {$ELSE}
-        if SkipWhiteSpace='"' then
+        if firstItem then firstItem:=false else
+          Expect(',','JSON element not delimited by comma');
+        if not(IsArray) and (SkipWhiteSpace<>'}') then
          begin
-          inc(i);
+          //key string
+          {$IFDEF JSONDOC_JSON_STRICT}
+          Expect('"','JSON key string not enclosed in double quotes');
           GetStringIndexes(k1,k2);
-         end
-        else
-         begin
-          k1:=i;
-          while (i<=l) and (jsonData[i]>' ') and
-            (jsonData[i]<>':') and (jsonData[i]<>'"') do inc(i);
-          k2:=i;
-         end;
-        {$ENDIF}
-        Expect(':','JSON key, value not separated by colon');
-       end;
-      //value
-      case AnsiChar(SkipWhiteSpace) of
-        '{','['://object or array
-         begin
-          b:=InObjectOrArray;
-          if jsonData[i]='{' then
-           begin
-            //an object starts
-            if da=nil then
-              if InObjectOrArray then
-               begin
-                key:=GetStringValue(k1,k2);
-                if d.QueryInterface(IID_IJSONDocWithReUse,dr)=S_OK then
-                 begin
-                  v:=dr.ReUse(key);
-                  dr:=nil;
-                 end
-                else
-                  v:=Null;
-                if (VarType(v) in [varDispatch,varUnknown]) and
-                  (IUnknown(v).QueryInterface(IID_IJSONDocument,d1)=S_OK) then
-                  d1:=nil
-                else
-                 begin
-                  v:=JSON;
-                  d[key]:=v;
-                 end;
-               end
-              else
-               begin
-                if ai=al then
-                 begin
-                  inc(al,arrGrowStep);//not too much, not too little (?)
-                  SetLength(a,al);
-                 end;
-                v:=JSON;
-                a[ai]:=v;
-                //detect same type elements array
-                if at=varEmpty then at:=varUnknown else
-                  if at<>varUnknown then at:=varVariant;
-                inc(ai);
-               end
-            else
-              if da0=stackIndex then da1:=i;
-            InObjectOrArray:=true;
-           end
-          else
-           begin
-            if da=nil then
-              if d.QueryInterface(IID_IJSONDocWithReUse,dr)=S_OK then
-               begin
-                key:=GetStringValue(k1,k2);
-                v:=dr.ReUse(key);
-                dr:=nil;
-                if (VarType(v) in [varDispatch,varUnknown]) and
-                  (IUnknown(v).QueryInterface(IID_IJSONDocArrayBuilder,da)=S_OK) then
-                 begin
-                  da0:=stackIndex+1;
-                  da1:=0;//see first '{' above
-                 end;
-               end;
-            InObjectOrArray:=false;
-           end;
-          inc(i);
-          //push onto stack
-          if stackIndex=stackSize then
-           begin
-            inc(stackSize,stackGrowStep);
-            SetLength(stack,stackSize);
-           end;
-          if b then //was InObjectOrArray?
-           begin
-            stack[stackIndex].k1:=k1;
-            stack[stackIndex].k2:=k2;
-            stack[stackIndex].d:=d;
-           end
-          else
-           begin
-            stack[stackIndex].k1:=a1;
-            stack[stackIndex].k2:=at;
-            stack[stackIndex].d:=nil;
-           end;
-          inc(stackIndex);
-          firstItem:=true;
-          if da=nil then
-            if InObjectOrArray then
-              d:=IUnknown(v) as IJSONDocument
-            else
-             begin
-              a1:=ai;
-              at:=varEmpty;//used to detect same type elements array
-             end;
-         end;
-
-        '}',']':;//empty object or array, drop into close array below
-
-        '"'://string
-         begin
-          inc(i);
-          GetStringIndexes(v1,v2);
-          if da=nil then SetValue(GetStringValue(v1,v2));
-         end;
-
-        '0'..'9','-'://number
-         begin
-          b:=jsonData[i]='-';
-          v1:=i;
-          if b then inc(i);
-          if da=nil then
-           begin
-            v64:=0;
-            while (i<=l) and (AnsiChar(jsonData[i]) in ['0'..'9']) do
-             begin
-              v64:=v64*10+(word(jsonData[i]) and $F);//TODO: detect overflow
-              inc(i);
-             end;
-            if AnsiChar(jsonData[i]) in ['.','e','E'] then
-             begin
-              //float
-              inc(i);
-              while (i<=l) and (AnsiChar(jsonData[i]) in
-                ['0'..'9','-','+','e','E']) do inc(i);
-              //try except EConvertError?
-              SetValue(StrToFloat(Copy(jsonData,v1,i-v1)));
-             end
-            else
-             begin
-              //integer
-              if v64>=$80000000 then //int64
-                if b then SetValue(-v64) else SetValue(v64)
-              else if v64>=$80 then //int32
-                if b then SetValue(-integer(v64)) else SetValue(integer(v64))
-              else //int8
-                if b then SetValue(-SmallInt(v64)) else SetValue(SmallInt(v64));
-             end;
-           end
-          else
-           begin
-            //skip
-            while (i<=l) and (AnsiChar(jsonData[i]) in ['0'..'9']) do inc(i);
-            if AnsiChar(jsonData[i]) in ['.','e','E'] then
-             begin
-              inc(i);
-              while (i<=l) and (AnsiChar(jsonData[i]) in
-                ['0'..'9','-','+','e','E']) do inc(i);
-             end;
-           end;
-         end;
-
-        't'://true
-         begin
-          inc(i);
-          Expect('r','JSON true misspelled');
-          Expect('u','JSON true misspelled');
-          Expect('e','JSON true misspelled');
-          if da=nil then SetValue(true);
-         end;
-        'f'://false
-         begin
-          inc(i);
-          Expect('a','JSON false misspelled');
-          Expect('l','JSON false misspelled');
-          Expect('s','JSON false misspelled');
-          Expect('e','JSON false misspelled');
-          if da=nil then SetValue(false);
-         end;
-        'n'://null
-         begin
-          inc(i);
-          Expect('u','JSON null misspelled');
-          Expect('l','JSON null misspelled');
-          Expect('l','JSON null misspelled');
-          if da=nil then SetValue(Null);
-         end;
-
-        else raise EJSONDecodeException.Create(
-          'JSON Unrecognized value type'+ExVicinity(i));
-      end;
-      if not firstItem then
-       begin
-        b:=true;
-        while b do
-         begin
-          v:=Null;
-          if InObjectOrArray then
-            b:=SkipWhiteSpace='}'
-          else
-            if SkipWhiteSpace=']' then
-             begin
-              if da=nil then v:=GetArrayValue;
-             end
-            else
-              b:=false;
-          if b then
+          {$ELSE}
+          if SkipWhiteSpace='"' then
            begin
             inc(i);
-            //pop from stack
-            if stackIndex=0 then
+            GetStringIndexes(k1,k2);
+           end
+          else
+           begin
+            k1:=i;
+            while (i<=l) and (jsonData[i]>' ') and
+              (jsonData[i]<>':') and (jsonData[i]<>'"') do inc(i);
+            k2:=i;
+           end;
+          {$ENDIF}
+          Expect(':','JSON key, value not separated by colon');
+         end;
+        //value
+        case AnsiChar(SkipWhiteSpace) of
+          '{','['://object or array
+           begin
+            b:=IsArray;
+            if jsonData[i]='{' then
              begin
-              //EndIndex:=i;
-              dec(stackIndex);//stackindex:=-1;
-              b:=false;
+              //an object starts
+              if da=nil then
+                if IsArray then
+                 begin
+                  if ai=al then
+                   begin
+                    inc(al,arrGrowStep);//not too much, not too little (?)
+                    SetLength(a,al);
+                   end;
+                  v:=JSON;
+                  a[ai]:=v;
+                  //detect same type elements array
+                  if at=varEmpty then at:=varUnknown else
+                    if at<>varUnknown then at:=varVariant;
+                  inc(ai);
+                 end
+                else
+                 begin
+                  key:=GetStringValue(k1,k2);
+                  if d.QueryInterface(IID_IJSONDocWithReUse,dr)=S_OK then
+                   begin
+                    v:=dr.ReUse(key);
+                    dr:=nil;
+                   end
+                  else
+                    v:=Null;
+                  if (TVarData(v).VType in [varDispatch,varUnknown]) and
+                    (IUnknown(v).QueryInterface(IID_IJSONDocument,d1)=S_OK) then
+                    d1:=nil
+                  else
+                   begin
+                    v:=JSON;
+                    d[key]:=v;
+                   end;
+                 end
+              else
+                if da0=stackIndex then da1:=i;
+              IsArray:=false;
              end
             else
              begin
-              dec(stackIndex);
-              if stack[stackIndex].d=nil then
+              //an array starts
+              if da=nil then
+                if d.QueryInterface(IID_IJSONDocWithReUse,dr)=S_OK then
+                 begin
+                  key:=GetStringValue(k1,k2);
+                  v:=dr.ReUse(key);
+                  dr:=nil;
+                  if (TVarData(v).VType in [varDispatch,varUnknown]) and
+                    (IUnknown(v).QueryInterface(IID_IJSONDocArray,da)=S_OK) then
+                   begin
+                    da0:=stackIndex+1;
+                    da1:=0;//see first '{' above
+                   end;
+                 end;
+              IsArray:=true;
+             end;
+            inc(i);
+            //push onto stack
+            if stackIndex=stackSize then
+             begin
+              inc(stackSize,stackGrowStep);
+              SetLength(stack,stackSize);
+             end;
+            if b then //if WasArray then
+             begin
+              stack[stackIndex].k1:=a1;
+              stack[stackIndex].k2:=at;
+              stack[stackIndex].d:=nil;
+             end
+            else
+             begin
+              stack[stackIndex].k1:=k1;
+              stack[stackIndex].k2:=k2;
+              stack[stackIndex].d:=d;
+             end;
+            inc(stackIndex);
+            firstItem:=true;
+            if da=nil then
+              if IsArray then
                begin
-                a1:=stack[stackIndex].k1;
-                at:=stack[stackIndex].k2;
-                InObjectOrArray:=false;
+                a1:=ai;
+                at:=varEmpty;//used to detect same type elements array
+               end
+              else
+                d:=IUnknown(v) as IJSONDocument;
+           end;
+
+          '}',']':;//empty object or array, drop into close array below
+
+          '"'://string
+           begin
+            inc(i);
+            GetStringIndexes(v1,v2);
+            if da=nil then
+              SetValue(GetStringValue(v1,v2))
+            else
+              CheckValue;
+           end;
+
+          '0'..'9','-'://number
+           begin
+            b:=jsonData[i]='-';
+            v1:=i;
+            if b then inc(i);
+            if da=nil then
+             begin
+              v64:=0;
+              while (i<=l) and (AnsiChar(jsonData[i]) in ['0'..'9']) do
+               begin
+                v64:=v64*10+(word(jsonData[i]) and $F);//TODO: detect overflow
+                inc(i);
+               end;
+              if AnsiChar(jsonData[i]) in ['.','e','E'] then
+               begin
+                //float
+                inc(i);
+                while (i<=l) and (AnsiChar(jsonData[i]) in
+                  ['0'..'9','-','+','e','E']) do inc(i);
+                //try except EConvertError?
+                SetValue(StrToFloat(Copy(jsonData,v1,i-v1)));
                end
               else
                begin
-                if da=nil then d:=stack[stackIndex].d;
-                k1:=stack[stackIndex].k1;
-                k2:=stack[stackIndex].k2;
-                stack[stackIndex].d:=nil;
-                InObjectOrArray:=true;
+                //integer
+                if v64>=$80000000 then //int64
+                  if b then SetValue(-v64) else SetValue(v64)
+                else if v64>=$80 then //int32
+                  if b then SetValue(-integer(v64)) else SetValue(integer(v64))
+                else //int8
+                  if b then SetValue(-SmallInt(v64)) else SetValue(SmallInt(v64));
                end;
-              if da<>nil then
-                if stackIndex=da0 then
-                  da.AddJSON(Copy(jsonData,da1,i-da1))
-                else
-                  if stackIndex=da0-1 then
-                    da:=nil;//done
+             end
+            else
+             begin
+              //skip
+              CheckValue;
+              while (i<=l) and (AnsiChar(jsonData[i]) in ['0'..'9']) do inc(i);
+              if AnsiChar(jsonData[i]) in ['.','e','E'] then
+               begin
+                inc(i);
+                while (i<=l) and (AnsiChar(jsonData[i]) in
+                  ['0'..'9','-','+','e','E']) do inc(i);
+               end;
              end;
-            //set array
-            if (da=nil) and (VarType(v)<>varNull) then SetValue(v);
+           end;
+
+          't'://true
+           begin
+            inc(i);
+            Expect('r','JSON true misspelled');
+            Expect('u','JSON true misspelled');
+            Expect('e','JSON true misspelled');
+            if da=nil then SetValue(true) else CheckValue;
+           end;
+          'f'://false
+           begin
+            inc(i);
+            Expect('a','JSON false misspelled');
+            Expect('l','JSON false misspelled');
+            Expect('s','JSON false misspelled');
+            Expect('e','JSON false misspelled');
+            if da=nil then SetValue(false) else CheckValue;
+           end;
+          'n'://null
+           begin
+            inc(i);
+            Expect('u','JSON null misspelled');
+            Expect('l','JSON null misspelled');
+            Expect('l','JSON null misspelled');
+            if da=nil then SetValue(Null) else CheckValue;
+            //TODO: support null in IJSONDocArray
+           end;
+
+          else raise EJSONDecodeException.Create(
+            'JSON Unrecognized value type'+ExVicinity(i));
+        end;
+        if not firstItem then
+         begin
+          b:=true;
+          while b do
+           begin
+            v:=Null;
+            if IsArray then
+              if SkipWhiteSpace=']' then
+               begin
+                if da=nil then
+                 begin
+                  if FUseIJSONArray then
+                   begin
+                    aa:=TJSONArray.Create(ai-a1);
+                    k1:=a1;
+                    k2:=0;
+                    while k1<ai do
+                     begin
+                      //aa[k2]:=a[k1];VarClear(a[k1]);
+                      VarMove(aa.FData[k2],a[k1]);
+                      inc(k1);
+                      inc(k2);
+                     end;
+                    v:=aa as IJSONArray;
+                   end
+                  else
+                   begin
+                    if not(VarTypeIsValidArrayType(at)) then at:=varVariant;
+                    v:=VarArrayCreate([0,ai-a1-1],at);
+                    k1:=a1;
+                    k2:=0;
+                    while k1<ai do
+                     begin
+                      v[k2]:=a[k1];
+                      VarClear(a[k1]);
+                      inc(k1);
+                      inc(k2);
+                     end;
+                   end;
+                  ai:=a1;
+                 end;
+               end
+              else
+                b:=false
+            else
+              b:=SkipWhiteSpace='}';
+            if b then
+             begin
+              inc(i);
+              //pop from stack
+              if stackIndex=0 then
+               begin
+                //EndIndex:=i;
+                dec(stackIndex);//stackindex:=-1;
+                b:=false;
+               end
+              else
+               begin
+                dec(stackIndex);
+                if stack[stackIndex].d=nil then
+                 begin
+                  a1:=stack[stackIndex].k1;
+                  at:=stack[stackIndex].k2;
+                  IsArray:=true;
+                 end
+                else
+                 begin
+                  if da=nil then d:=stack[stackIndex].d;
+                  k1:=stack[stackIndex].k1;
+                  k2:=stack[stackIndex].k2;
+                  stack[stackIndex].d:=nil;
+                  IsArray:=false;
+                 end;
+                if da<>nil then
+                  if stackIndex=da0 then
+                    da.AddJSON(Copy(jsonData,da1,i-da1))
+                  else
+                    if stackIndex=da0-1 then
+                      da:=nil;//done
+               end;
+              //set array
+              if (da=nil) and (TVarData(v).VType<>varNull) then SetValue(v);
+             end;
            end;
          end;
        end;
-     end;
-    if stackIndex<>-1 then raise EJSONDecodeException.Create(
-      'JSON with '+IntToStr(stackIndex+1)+' objects or arrays not closed');
+      if stackIndex<>-1 then raise EJSONDecodeException.Create(
+        'JSON with '+IntToStr(stackIndex+1)+' objects or arrays not closed');
+    finally
+      {$if CompilerVersion >= 24}
+      FormatSettings.DecimalSeparator:=ods;
+      {$else}
+      DecimalSeparator:=ods;
+      {$ifend}
+    end;
+  {$IFDEF JSONDOC_THREADSAFE}
   finally
-    {$if CompilerVersion >= 24}
-    FormatSettings.DecimalSeparator:=ods;
-    {$else}
-    DecimalSeparator:=ods;
-    {$ifend}
+    LeaveCriticalSection(FLock);
   end;
+  {$ENDIF}
   Result:=Self;
 end;
 
-function TJSONDocument.JSONToString: WideString;
-  function EncodeStr(const x:OleVariant):WideString;
-  const
-    resGrowStep=$100;
-    hex:array[0..15] of WideChar=(
-      '0','1','2','3','4','5','6','7',
-      '8','9','A','B','C','D','E','F');
-  var
-    xx:WideString;
-    i,j,k,l:integer;
-    w:word;
-  begin
-    xx:=VarToWideStr(x);
-    l:=Length(xx);
-    SetLength(Result,l);
-    i:=1;
-    j:=0;
-    k:=l;
-    while i<=l do
-     begin
-      w:=word(xx[i]);
-      case w of
-        0..31,word('"'),word('\'),word('/'):
+function JSONEncodeStr(const xx:WideString):WideString;
+const
+  resGrowStep=$100;
+  hex:array[0..15] of WideChar=(
+    '0','1','2','3','4','5','6','7',
+    '8','9','A','B','C','D','E','F');
+var
+  i,j,k,l:integer;
+  w:word;
+begin
+  l:=Length(xx);
+  SetLength(Result,l+2);
+  Result[1]:='"';
+  i:=1;
+  j:=1;
+  k:=l+2;
+  while i<=l do
+   begin
+    w:=word(xx[i]);
+    case w of
+      0..31,word('"'),word('\'),word('/'):
+       begin
+        if j+3>k then
          begin
-          if j+2>k then
+          k:=((k div resGrowStep)+1)*resGrowStep;
+          SetLength(Result,k);
+         end;
+        inc(j);
+        Result[j]:='\';
+        inc(j);
+        case w of
+          8:Result[j]:='b';
+          9:Result[j]:='t';
+          10:Result[j]:='n';
+          12:Result[j]:='f';
+          13:Result[j]:='r';
+          word('"'),word('\'),word('/'):Result[j]:=xx[i];
+          else
            begin
-            k:=((k div resGrowStep)+1)*resGrowStep;
-            SetLength(Result,k);
-           end;
-          inc(j);
-          Result[j]:='\';
-          inc(j);
-          case w of
-            8:Result[j]:='b';
-            9:Result[j]:='t';
-            10:Result[j]:='n';
-            12:Result[j]:='f';
-            13:Result[j]:='r';
-            word('"'),word('\'),word('/'):Result[j]:=xx[i];
-            else
+            Result[j]:='u';
+            if j+4>k then
              begin
-              Result[j]:='u';
-              if j+4>k then
-               begin
-                k:=((k div resGrowStep)+1)*resGrowStep;
-                SetLength(Result,k);
-               end;
-              inc(j);Result[j]:=hex[w shr 12];
-              inc(j);Result[j]:=hex[w shr 8 and $F];
-              inc(j);Result[j]:=hex[w shr 4 and $F];
-              inc(j);Result[j]:=hex[w and $F];
+              k:=((k div resGrowStep)+1)*resGrowStep;
+              SetLength(Result,k);
              end;
-          end;
-         end;
-        else
-         begin
-          if j>=k then
-           begin
-            k:=((k div resGrowStep)+1)*resGrowStep;
-            SetLength(Result,k);
+            inc(j);Result[j]:=hex[w shr 12];
+            inc(j);Result[j]:=hex[w shr 8 and $F];
+            inc(j);Result[j]:=hex[w shr 4 and $F];
+            inc(j);Result[j]:=hex[w and $F];
            end;
-          inc(j);
-          Result[j]:=WideChar(w);
+        end;
+       end;
+      else
+       begin
+        if j+2>k then
+         begin
+          k:=((k div resGrowStep)+1)*resGrowStep;
+          SetLength(Result,k);
          end;
-      end;
-      inc(i);
+        inc(j);
+        Result[j]:=WideChar(w);
+       end;
+    end;
+    inc(i);
+   end;
+  inc(j);
+  Result[j]:='"';
+  SetLength(Result,j);
+end;
+
+{
+function JSONVarToStr(const v: Variant):WideString;
+begin
+  if (TVarData(v).VType and varArray)=0 then
+    Result:=JSONVarToStr1(v)
+  else
+    .....
+end;
+}
+
+function JSONVarToStr1(const v: Variant):WideString;
+var
+  uu:IUnknown;
+  d:IJSONDocument;
+  da:IJSONArray;
+begin
+  case TVarData(v).VType and varTypeMask of
+    varNull:Result:='null';
+    varSmallint,varInteger,varShortInt,
+    varByte,varWord,varLongWord,varInt64:
+      Result:=VarToWideStr(v);
+    varSingle,varDouble,varCurrency:
+      Result:=FloatToStr(v);//?
+    varDate:
+      //Result:=FloatToStr(VarToDateTime(v));//?
+      Result:='"'+FormatDateTime('yyyy-mm-dd"T"hh:nn:ss.zzz',
+        VarToDateTime(v))+'"';
+    varOleStr,varString:
+      Result:=JSONEncodeStr(VarToWideStr(v));
+    varBoolean:
+      if v then Result:='true' else Result:='false';
+    varDispatch,varUnknown:
+     begin
+      uu:=IUnknown(v);
+      if uu=nil then Result:='null'
+      else
+      if uu.QueryInterface(IID_IJSONDocument,d)=S_OK then
+       begin
+        //revert to ToString
+        Result:=d.ToString;
+        d:=nil;
+       end
+      else
+      if uu.QueryInterface(IID_IJSONArray,da)=S_OK then
+       begin
+        //TODO: re-do indenting
+        Result:=da.ToString;
+        da:=nil;
+       end
+      else
+      //IRegExp2? IStream? IPersistStream?
+        raise EJSONEncodeException.Create(
+          'No supported interface found on object');
      end;
-    SetLength(Result,j);
+    else raise EJSONEncodeException.Create(
+      'Unsupported variant type '+IntToHex(TVarData(v).VType,4));
   end;
+end;
+
+function TJSONDocument.JSONToString: WideString;
 const
   stackGrowStep=$20;
 var
   e:IJSONEnumerator;
-  a:OleVariant;
-  ai:integer;
-  al:integer;
-  firstItem:boolean;
+  IsArray,firstItem:boolean;
   stack:array of record
     e:IJSONEnumerator;
-    a:OleVariant;
-    ai,al:integer;
+    IsArray:boolean;
   end;
   stackLength,stackIndex:integer;
   function ExTrace:string;
   var
     i:integer;
   begin
-    Result:='';
-    if VarType(a)<>varNull then Result:=' #'+IntToStr(ai);
-    if (e<>nil) and not(e.EOF) then Result:=Result+' "'+e.Key+'"'+Result;
+    if IsArray then
+      Result:=' #'+e.Key
+    else
+      Result:=' "'+e.Key+'"';
     i:=stackIndex;
     while i<>0 do
      begin
       dec(i);
-      if VarType(stack[i].a)<>varNull then Result:=' #'+IntToStr(stack[i].ai-1)+Result;
-      if (stack[i].e<>nil) and not(stack[i].e.EOF) then Result:=Result+' "'+stack[i].e.Key+'"'+Result;
+      if stack[i].IsArray then
+        Result:=' #'+stack[i].e.Key+Result
+      else
+        Result:=' "'+stack[i].e.Key+'"'+Result;
      end;
   end;
 const
@@ -967,182 +1333,157 @@ var
     Move(xx[1],Result[wi+1],xl*2);
     inc(wi,xl);
   end;
-  procedure wv(const v:OleVariant);
-  var
-    vt:TVarType;
-    uu:IUnknown;
-    d:IJSONDocument;
-    de:IJSONEnumerable;
-    da:IJSONDocArrayBuilder;
+  procedure Push(const NewEnum:IJSONEnumerator;NewIsArray:boolean);
   begin
-    vt:=VarType(v);
-    //if (vt and varByRef)<>0 then
-    //  raise EJSONEncodeException.Create('VarByRef: not implemented'+ExTrace);
-    if (vt and varArray)=0 then
+    if stackIndex=stackLength then
      begin
-      //not an array, plain value
-      case vt and varTypeMask of
-        varNull:w('null');
-        varSmallint,varInteger,varShortInt,
-        varByte,varWord,varLongWord,varInt64:
-          w(VarToWideStr(v));
-        varSingle,varDouble,varCurrency:
-          w(FloatToStr(v));//?
-        varDate:
-         begin
-          //w(FloatToStr(VarToDateTime(v)));//?
-          w('"');
-          //TODO:"yyyy-mm-dd hh:nn:ss.zzz"? $date?
-          w(FormatDateTime('yyyy-mm-dd"T"hh:nn:ss.zzz',VarToDateTime(v)));
-          w('"');
-         end;
-        varOleStr:
-         begin
-          w('"');
-          w(EncodeStr(VarToWideStr(v)));
-          w('"');
-         end;
-        varBoolean:
-          if v then w('true') else w('false');
-        varDispatch,varUnknown:
-         begin
-          uu:=IUnknown(v);
-          if uu=nil then w('null')
-          else
-          if uu.QueryInterface(IID_IJSONEnumerable,de)=S_OK then
-           begin
-            //push onto stack
-            if stackIndex=stackLength then
-             begin
-              inc(stackLength,stackGrowStep);
-              SetLength(stack,stackLength);
-             end;
-            stack[stackIndex].e:=e;
-            stack[stackIndex].a:=a;
-            stack[stackIndex].ai:=ai;
-            stack[stackIndex].al:=al;
-            inc(stackIndex);
-            e:=de.NewEnumerator;
-            a:=Null;
-            w('{');
-            firstItem:=true;
-            {$IFDEF JSONDOC_STOREINDENTING}
-            inc(tabIndex);
-            {$ENDIF}
-            de:=nil;
-           end
-          else
-          if uu.QueryInterface(IID_IJSONDocument,d)=S_OK then
-           begin
-            //revert to ToString
-            w(d.ToString);
-            d:=nil;
-           end
-          else
-          if uu.QueryInterface(IID_IJSonDocArrayBuilder,da)=S_OK then
-           begin
-            //TODO: re-do indenting
-            w(da.ToString);
-            da:=nil;
-           end
-          else
-          //IRegExp2? IStream? IPersistStream?
-            raise EJSONEncodeException.Create(
-              'No supported interface found on object'+ExTrace);
-         end;
-        else raise EJSONEncodeException.Create(
-          'Unsupported variant type '+IntToHex(vt,4)+ExTrace);
-      end;
-     end
-    else
-     begin
-      //TODO: if (vt and varTypeMask)=varByte then BLOB?
-      //start an array
-      if VarArrayDimCount(v)>1 then //TODO:
-        raise EJSONEncodeException.Create(
-          'VarArray: multi-dimensional arrays not supported'+ExTrace);
-      if VarType(a)<>varNull then
-       begin
-        //push onto stack
-        if stackIndex=stackLength then
-         begin
-          inc(stackLength,stackGrowStep);
-          SetLength(stack,stackLength);
-         end;
-        stack[stackIndex].e:=e;
-        stack[stackIndex].a:=a;
-        stack[stackIndex].ai:=ai;
-        stack[stackIndex].al:=al;
-        inc(stackIndex);
-        e:=nil;
-       end;
-      a:=v;
-      ai:=VarArrayLowBound(v,1)-1;
-      al:=VarArrayHighBound(v,1)+1;
-      w('[');
-      firstItem:=true;
-      {$IFDEF JSONDOC_STOREINDENTING}
-      inc(tabIndex);
-      {$ENDIF}
+      inc(stackLength,stackGrowStep);
+      SetLength(stack,stackLength);
      end;
+    stack[stackIndex].e:=e;
+    stack[stackIndex].IsArray:=IsArray;
+    inc(stackIndex);
+    e:=NewEnum;
+    IsArray:=NewIsArray;
+    if IsArray then w('[') else w('{');
+    firstItem:=true;
+    {$IFDEF JSONDOC_STOREINDENTING}
+    inc(tabIndex);
+    {$ENDIF}
   end;
 var
   ods:char;
-  lastItem:boolean;
+  vt:TVarType;
+  uu:IUnknown;
+  d:IJSONDocument;
+  de:IJSONEnumerable;
+  da1:IJSONArray;
+  da:IJSONDocArray;
 begin
   if Self=nil then
    begin
     Result:='null';
     Exit;
    end;
-  wi:=1;
-  wl:=resultGrowStep;
-  SetLength(Result,wl);
-  Result[1]:='{';
-
-  stackLength:=0;
-  stackIndex:=0;
-  e:=TJSONEnumerator.Create(Self);
-  a:=Null;
-  ai:=0;
-
-  {$if CompilerVersion >= 24}
-  ods:= FormatSettings.DecimalSeparator;
-  {$else}
-  ods:=DecimalSeparator;
-  {$ifend}
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
   try
+  {$ENDIF}
+    wi:=1;
+    wl:=resultGrowStep;
+    SetLength(Result,wl);
+    Result[1]:='{';
+
+    stackLength:=0;
+    stackIndex:=0;
+    e:=TJSONEnumerator.Create(Self);
+    IsArray:=false;
+
     {$if CompilerVersion >= 24}
-    FormatSettings.DecimalSeparator:='.';
+    ods:= FormatSettings.DecimalSeparator;
     {$else}
-    DecimalSeparator:='.';
+    ods:=DecimalSeparator;
     {$ifend}
+    try
+      {$if CompilerVersion >= 24}
+      FormatSettings.DecimalSeparator:='.';
+      {$else}
+      DecimalSeparator:='.';
+      {$ifend}
 
-    //w('{');//see above
-    firstItem:=true;
-    {$IFDEF JSONDOC_STOREINDENTING}
-    tabIndex:=3;
-    {$ENDIF}
-    while not((e<>nil) and e.EOF and (VarType(a)=varNull)) do
-     begin
-      lastItem:=false;//default
-      if VarType(a)=varNull then
-       begin
-        //in document
-        if (e<>nil) and (e.Next) then
+      //w('{');//see above
+      firstItem:=true;
+      {$IFDEF JSONDOC_STOREINDENTING}
+      tabIndex:=3;
+      {$ENDIF}
+      while e<>nil do
+        if e.Next then
          begin
           if firstItem then firstItem:=false else w(',');
           {$IFDEF JSONDOC_STOREINDENTING}
           w(Copy(tabs,1,tabIndex));
           {$ENDIF}
-          w('"');
-          w(EncodeStr(e.Key));
-          {$IFDEF JSONDOC_STOREINDENTING}
-          w('": ');
-          {$ELSE}
-          w('":');
-          {$ENDIF}
-          wv(e.Value);
+          if not IsArray then
+           begin
+            w(JSONEncodeStr(e.Key));
+            {$IFDEF JSONDOC_STOREINDENTING}
+            w(': ');
+            {$ELSE}
+            w(':');
+            {$ENDIF}
+           end;
+          //write value
+          vt:=TVarData(PVariant(e.v0)^).VType;
+          //if (vt and varByRef)<>0 then
+          //  raise EJSONEncodeException.Create('VarByRef: not implemented'+ExTrace);
+          if (vt and varArray)=0 then
+           begin
+            //not an array, plain value
+            //TODO: deduplicate with JSONVarToStr1(PVariant(e.v0)^);
+            case vt and varTypeMask of
+              varNull:w('null');
+              varSmallint,varInteger,varShortInt,
+              varByte,varWord,varLongWord,varInt64:
+                w(VarToWideStr(PVariant(e.v0)^));
+              varSingle,varDouble,varCurrency:
+                w(FloatToStr(PVariant(e.v0)^));//?
+              varDate:
+               begin
+                //w(FloatToStr(VarToDateTime(v)));//?
+                w('"');
+                //TODO:"yyyy-mm-dd hh:nn:ss.zzz"? $date?
+                w(FormatDateTime('yyyy-mm-dd"T"hh:nn:ss.zzz',VarToDateTime(PVariant(e.v0)^)));
+                w('"');
+               end;
+              varOleStr,varString:
+                w(JSONEncodeStr(VarToWideStr(PVariant(e.v0)^)));
+              varBoolean:
+                if PVariant(e.v0)^ then w('true') else w('false');
+              varDispatch,varUnknown:
+               begin
+                uu:=IUnknown(PVariant(e.v0)^);
+                if uu=nil then w('null')
+                else
+                if uu.QueryInterface(IID_IJSONEnumerable,de)=S_OK then
+                 begin
+                  Push(de.NewEnumerator,false);
+                  de:=nil;
+                 end
+                else
+                if uu.QueryInterface(IID_IJSONDocument,d)=S_OK then
+                 begin
+                  //revert to ToString
+                  w(d.ToString);
+                  d:=nil;
+                 end
+                else
+                if uu.QueryInterface(IID_IJSONDocArray,da)=S_OK then
+                 begin
+                  //TODO: re-do indenting
+                  w(da.ToString);
+                  da:=nil;
+                 end
+                else
+                if uu.QueryInterface(IID_IJSONArray,da1)=S_OK then
+                 begin
+                  //TODO: re-do indenting
+                  Push(TJSONArrayEnumerator.Create(da1),true);
+                  da1:=nil;
+                 end
+                else
+                //IRegExp2? IStream? IPersistStream?
+                  raise EJSONEncodeException.Create(
+                    'No supported interface found on object'+ExTrace);
+               end;
+              else raise EJSONEncodeException.Create(
+                'Unsupported variant type '+IntToHex(vt,4)+ExTrace);
+            end;
+           end
+          else
+           begin
+            //TODO: if (vt and varTypeMask)=varByte then BLOB?
+            Push(TVarArrayEnumerator.Create(e.v0),true);
+           end;
          end
         else
          begin
@@ -1150,61 +1491,37 @@ begin
           dec(tabIndex);
           if not firstItem then w(Copy(tabs,1,tabIndex));
           {$ENDIF}
+          if IsArray then w(']') else w('}');
           firstItem:=false;
-          lastItem:=true;
-          w('}');
+          if stackIndex=0 then
+            e:=nil
+          else
+           begin
+            //pop from stack
+            dec(stackIndex);
+            e:=stack[stackIndex].e;
+            IsArray:=stack[stackIndex].IsArray;
+            stack[stackIndex].e:=nil;
+           end;
          end;
-       end;
-      if VarType(a)<>varNull then
-       begin
-        //in array
-        inc(ai);
-        if ai=al then
-         begin
-          {$IFDEF JSONDOC_STOREINDENTING}
-          dec(tabIndex);
-          if not firstItem then w(Copy(tabs,1,tabIndex));
-          {$ENDIF}
-          firstItem:=false;
-          lastItem:=e=nil;
-          a:=Null;
-          w(']');
-         end
-        else
-         begin
-          if firstItem then firstItem:=false else w(',');
-          {$IFDEF JSONDOC_STOREINDENTING}
-          w(Copy(tabs,1,tabIndex));
-          {$ENDIF}
-          wv(a[ai]);
-         end;
-       end;
-      if lastItem and (stackIndex<>0) then
-       begin
-        //pop from stack
-        dec(stackIndex);
-        e:=stack[stackIndex].e;
-        a:=stack[stackIndex].a;
-        ai:=stack[stackIndex].ai;
-        al:=stack[stackIndex].al;
-        stack[stackIndex].e:=nil;
-        VarClear(stack[stackIndex].a);
-        //assert firstItem=false
-       end;
-     end;
 
-    SetLength(Result,wi);
+      SetLength(Result,wi);
 
+    finally
+      {$if CompilerVersion >= 24}
+      FormatSettings.DecimalSeparator:=ods;
+      {$else}
+      DecimalSeparator:=ods;
+      {$ifend}
+    end;
+  {$IFDEF JSONDOC_THREADSAFE}
   finally
-    {$if CompilerVersion >= 24}
-    FormatSettings.DecimalSeparator:=ods;
-    {$else}
-    DecimalSeparator:=ods;
-    {$ifend}
+    LeaveCriticalSection(FLock);
   end;
+  {$ENDIF}
 end;
 
-function TJSONDocument.ToVarArray: OleVariant;
+function TJSONDocument.ToVarArray: Variant;
 var
   i,l:integer;
 begin
@@ -1213,19 +1530,28 @@ begin
     Result:=Null;
     Exit;
    end;
-  l:=0;
-  for i:=0 to FElementIndex-1 do
-    if FElements[i].LoadIndex=FLoadIndex then inc(l);
-      //and not(VarIsNull(FElements[i].Value))?
-  Result:=VarArrayCreate([0,l-1,0,1],varVariant);
-  l:=0;
-  for i:=0 to FElementIndex-1 do
-    if FElements[i].LoadIndex=FLoadIndex then
-     begin
-      Result[l,0]:=FElements[i].Key;
-      Result[l,1]:=FElements[i].Value;
-      inc(l);
-     end;
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    l:=0;
+    for i:=0 to FElementIndex-1 do
+      if FElements[i].LoadIndex=FLoadIndex then inc(l);
+        //and not(VarIsNull(FElements[i].Value))?
+    Result:=VarArrayCreate([0,l-1,0,1],varVariant);
+    l:=0;
+    for i:=0 to FElementIndex-1 do
+      if FElements[i].LoadIndex=FLoadIndex then
+       begin
+        Result[l,0]:=FElements[i].Key;
+        Result[l,1]:=FElements[i].Value;
+        inc(l);
+       end;
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
 end;
 
 procedure TJSONDocument.Clear;
@@ -1233,61 +1559,736 @@ var
   i:integer;
   uu:IUnknown;
   d:IJSONDocument;
-  da:IJSONDocArrayBuilder;
+  da:IJSONDocArray;
 begin
-  //FDirty:=false;
-  for i:=0 to FElementIndex-1 do
-    if VarType(FElements[i].Value)=varUnknown then
-     begin
-      uu:=IUnknown(FElements[i].Value);
-      if uu.QueryInterface(IID_IJSONDocument,d)=S_OK then
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ELSE}
+    FGotMatch:=false;
+  {$ENDIF}
+    //FDirty:=false;
+    for i:=0 to FElementIndex-1 do
+      if TVarData(FElements[i].Value).VType=varUnknown then
        begin
-        d.Clear;
-        d:=nil;
-       end
-      else
-      if uu.QueryInterface(IID_IJSONDocArrayBuilder,da)=S_OK then
-       begin
-        da.Clear;
-        da:=nil;
+        uu:=IUnknown(FElements[i].Value);
+        if uu.QueryInterface(IID_IJSONDocument,d)=S_OK then
+         begin
+          d.Clear;
+          d:=nil;
+         end
+        else
+        if uu.QueryInterface(IID_IJSONDocArray,da)=S_OK then
+         begin
+          da.Clear;
+          da:=nil;
+         end
+        else
+          VarClear(FElements[i].Value);
        end
       else
         VarClear(FElements[i].Value);
-     end
-    else
-      VarClear(FElements[i].Value);
-  FGotMatch:=false;
-  inc(FLoadIndex);
+    inc(FLoadIndex);
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
 end;
 
 procedure TJSONDocument.Delete(const Key: WideString);
 var
-  i:integer;
+  GotIndex,GotSorted:integer;
   uu:IUnknown;
   d:IJSONDocument;
+  da:IJSONDocArray;
 begin
-  if GetKeyIndex(Key) then
-   begin
-    i:=FGotIndex;
-    if VarType(FElements[i].Value)=varUnknown then
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    if GetKeyIndex(Key,GotIndex,GotSorted) then
      begin
-      uu:=IUnknown(FElements[i].Value);
-      if uu.QueryInterface(IID_IJSONDocument,d)=S_OK then
-        d.Clear
+      if TVarData(FElements[GotIndex].Value).VType=varUnknown then
+       begin
+        uu:=IUnknown(FElements[GotIndex].Value);
+        if uu.QueryInterface(IID_IJSONDocument,d)=S_OK then
+         begin
+          d.Clear;
+          d:=nil;
+         end
+        else
+        if uu.QueryInterface(IID_IJSONDocArray,da)=S_OK then
+         begin
+          da.Clear;
+          da:=nil;
+         end
+        else
+          VarClear(FElements[GotIndex].Value);
+       end
       else
-        VarClear(FElements[i].Value);
-     end
-    else
-      VarClear(FElements[i].Value);
-    FElements[i].LoadIndex:=FLoadIndex-1;
-   end;
-  //else raise?
-  //FDirty:=true;
+        VarClear(FElements[GotIndex].Value);
+      FElements[GotIndex].LoadIndex:=FLoadIndex-1;
+     end;
+    //else raise?
+    //FDirty:=true;
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
 end;
 
 function TJSONDocument.NewEnumerator: IJSONEnumerator;
 begin
   Result:=TJSONEnumerator.Create(Self);
+end;
+
+{ TJSONEnumerator }
+
+constructor TJSONEnumerator.Create(Data: TJSONDocument);
+begin
+  inherited Create;
+  FData:=Data;
+  FIndex:=-1;
+  //TODO: hook into TJSONDocument destructor?
+end;
+
+destructor TJSONEnumerator.Destroy;
+begin
+  FData:=nil;
+  inherited;
+end;
+
+function TJSONEnumerator.EOF: boolean;
+var
+  i:integer;
+begin
+  if FData=nil then
+    Result:=true
+  else
+   begin
+    {$IFDEF JSONDOC_THREADSAFE}
+    EnterCriticalSection(FData.FLock);
+    try
+    {$ENDIF}
+      i:=FIndex;
+      if i=-1 then i:=0;
+      while (i<FData.FElementIndex) and
+        (FData.FElements[i].LoadIndex<>FData.FLoadIndex) do
+        inc(i);
+      Result:=i>=FData.FElementIndex;
+    {$IFDEF JSONDOC_THREADSAFE}
+    finally
+      LeaveCriticalSection(FData.FLock);
+    end;
+    {$ENDIF}
+   end;
+end;
+
+function TJSONEnumerator.Next: boolean;
+begin
+  if FData=nil then
+    Result:=false
+  else
+   begin
+    {$IFDEF JSONDOC_THREADSAFE}
+    EnterCriticalSection(FData.FLock);
+    try
+    {$ENDIF}
+      inc(FIndex);
+      while (FIndex<FData.FElementIndex) and
+        (FData.FElements[FIndex].LoadIndex<>FData.FLoadIndex) do
+        inc(FIndex);
+      Result:=FIndex<FData.FElementIndex;
+    {$IFDEF JSONDOC_THREADSAFE}
+    finally
+      LeaveCriticalSection(FData.FLock);
+    end;
+    {$ENDIF}
+   end;
+end;
+
+function TJSONEnumerator.Get_Key: WideString;
+begin
+  if (FIndex<0) or (FData=nil) or (FIndex>=FData.FElementIndex) then
+    raise ERangeError.Create('Out of range')
+  else
+    Result:=FData.FElements[FIndex].Key;
+end;
+
+function TJSONEnumerator.Get_Value: Variant;
+begin
+  if (FIndex<0) or (FData=nil) or (FIndex>=FData.FElementIndex) then
+    raise ERangeError.Create('Out of range')
+  else
+    Result:=FData.FElements[FIndex].Value;
+end;
+
+procedure TJSONEnumerator.Set_Value(const Value: Variant);
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FData.FLock);
+  try
+  {$ENDIF}
+    if (FIndex<0) or (FData=nil) or (FIndex>=FData.FElementIndex) then
+      raise ERangeError.Create('Out of range')
+    else
+      FData.FElements[FIndex].Value:=Value;
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FData.FLock);
+  end;
+  {$ENDIF}
+end;
+
+function TJSONEnumerator.v0: pointer;
+begin
+  if (FIndex<0) or (FData=nil) or (FIndex>=FData.FElementIndex) then
+    raise ERangeError.Create('Out of range')
+  else
+    Result:=@FData.FElements[FIndex].Value;
+end;
+
+{ TVarArrayEnumerator }
+
+constructor TVarArrayEnumerator.Create(const Data: PVariant);
+begin
+  inherited Create;
+  if VarArrayDimCount(Data^)<>1 then
+    raise EJSONException.Create('VarArray: multi-dimensional arrays not supported');
+  FData:=Data;
+  VarClear(FCurrent);
+  FIndex:=VarArrayLowBound(Data^,1);
+  FMax:=VarArrayHighBound(Data^,1)+1;
+  FCurrentIndex:=FIndex-1;
+  if FIndex<FMax then dec(FIndex);//see Next
+end;
+
+destructor TVarArrayEnumerator.Destroy;
+begin
+  VarClear(FCurrent);
+  FData:=nil;
+  inherited;
+end;
+
+function TVarArrayEnumerator.EOF: boolean;
+begin
+  Result:=not(FIndex<FMax);
+end;
+
+function TVarArrayEnumerator.Get_Key: WideString;
+begin
+  Result:=IntToStr(FIndex);
+end;
+
+function TVarArrayEnumerator.Get_Value: Variant;
+begin
+  Result:=FData^[FIndex];
+end;
+
+function TVarArrayEnumerator.Next: boolean;
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    inc(FIndex);
+    Result:=FIndex<FMax;
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
+procedure TVarArrayEnumerator.Set_Value(const Value: Variant);
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    FData^[FIndex]:=Value;
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
+function TVarArrayEnumerator.v0: pointer;
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    if FCurrentIndex<>FIndex then
+     begin
+      FCurrent:=FData^[FIndex];//TODO: keep SafeArray locked for lifetime of TVarArrayEnumerator instance?
+      FCurrentIndex:=FIndex;
+     end;
+    Result:=@FCurrent;
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
+{ TVarJSONArray }
+
+constructor TVarJSONArray.Create(const Data: Variant);
+begin
+  inherited Create;
+  if (TVarData(Data).VType and varArray)=0 then
+    raise EJSONException.Create('TVarJSONArray: array variant expected');
+  if VarArrayDimCount(Data)<>1 then
+    raise EJSONException.Create('TVarJSONArray: multi-dimensional arrays not supported');
+  FData:=Data;
+  v1:=VarArrayLowBound(FData,1);
+  v2:=VarArrayHighBound(FData,1)+1;
+  VarClear(FCurrent);
+  FCurrentIndex:=-1;
+end;
+
+constructor TVarJSONArray.CreateNoCopy(var Data: Variant);
+begin
+  inherited Create;
+  if (TVarData(Data).VType and varArray)=0 then
+    raise EJSONException.Create('TVarJSONArray: array variant expected');
+  if VarArrayDimCount(Data)<>1 then
+    raise EJSONException.Create('TVarJSONArray: multi-dimensional arrays not supported');
+  VarMove(FData,Data);
+  v1:=VarArrayLowBound(FData,1);
+  v2:=VarArrayHighBound(FData,1)+1;
+  VarClear(FCurrent);
+  FCurrentIndex:=-1;
+end;
+
+destructor TVarJSONArray.Destroy;
+begin
+  VarClear(FCurrent);
+  VarClear(FData);
+  inherited;
+end;
+
+function TVarJSONArray.Count: integer;
+begin
+  Result:=v2-v1;
+end;
+
+function TVarJSONArray.Get_Item(Index: integer): Variant;
+begin
+  if (Index<0) or (Index>=v2-v1) then
+    raise ERangeError.Create('Out of range');
+  Result:=FData[Index+v1];
+end;
+
+procedure TVarJSONArray.Set_Item(Index: integer; const Value: Variant);
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    if (Index<0) or (Index>=v2-v1) then
+      raise ERangeError.Create('Out of range');
+    FData[Index+v1]:=Value;
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
+function TVarJSONArray.v0(Index: integer): pointer;
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  Result:=nil;//counter warning
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    if FCurrentIndex<>Index then
+     begin
+      if (Index<0) or (Index>=v2-v1) then
+        raise ERangeError.Create('Out of range');
+      FCurrent:=FData[Index+v1];
+      FCurrentIndex:=Index;
+     end;
+    Result:=@FCurrent;
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
+function TVarJSONArray.JSONToString: WideString;
+var
+  i:integer;
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    //TODO: indenting?
+    Result:='';
+    i:=v1;
+    while (i<v2) do
+     begin
+      Result:=Result+','+JSONVarToStr1(FData[i]);
+      inc(i);
+     end;
+    Result[1]:='[';
+    Result:=Result+']';
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
+{ TJSONArray }
+
+constructor TJSONArray.Create(Size: integer);
+begin
+  inherited Create;
+  SetLength(FData,Size);
+end;
+
+function TJSONArray.Count: integer;
+begin
+  Result:=Length(FData);
+end;
+
+function TJSONArray.Get_Item(Index: integer): Variant;
+begin
+  if (Index<0) or (Index>=Length(FData)) then
+    raise ERangeError.Create('Out of range');
+  Result:=FData[Index];
+end;
+
+procedure TJSONArray.Set_Item(Index: integer; const Value: Variant);
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    if (Index<0) or (Index>=Length(FData)) then
+      raise ERangeError.Create('Out of range');
+    FData[Index]:=Value;
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
+function TJSONArray.v0(Index: integer): pointer;
+begin
+  if (Index<0) or (Index>=Length(FData)) then
+    raise ERangeError.Create('Out of range');
+  Result:=@FData[Index];
+end;
+
+function TJSONArray.JSONToString: WideString;
+var
+  i:integer;
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    //TODO: indenting?
+    Result:='';
+    i:=0;
+    while (i<Length(FData)) do
+     begin
+      Result:=Result+','+JSONVarToStr1(FData[i]);
+      inc(i);
+     end;
+    Result[1]:='[';
+    Result:=Result+']';
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
+{ TJSONArrayEnumerator }
+
+constructor TJSONArrayEnumerator.Create(const Data: IJSONArray);
+begin
+  inherited Create;
+  FData:=Data;
+  FMax:=FData.Count;
+  if FMax=0 then FIndex:=0 else FIndex:=-1;//see Next;
+end;
+
+destructor TJSONArrayEnumerator.Destroy;
+begin
+  FData:=nil;
+  inherited;
+end;
+
+function TJSONArrayEnumerator.EOF: boolean;
+begin
+  Result:=not(FIndex<FMax);
+end;
+
+function TJSONArrayEnumerator.Get_Key: WideString;
+begin
+  Result:=IntToStr(FIndex);
+end;
+
+function TJSONArrayEnumerator.Get_Value: Variant;
+begin
+  Result:=FData[FIndex];
+end;
+
+function TJSONArrayEnumerator.Next: boolean;
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    inc(FIndex);
+    Result:=FIndex<FMax;
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
+procedure TJSONArrayEnumerator.Set_Value(const Value: Variant);
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    FData[FIndex]:=Value;
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
+function TJSONArrayEnumerator.v0: pointer;
+begin
+  Result:=FData.v0(FIndex);
+end;
+
+{ TJSONDocArray }
+
+constructor TJSONDocArray.Create;
+begin
+  inherited Create;
+  FItemsCount:=0;
+  FItemsSize:=0;
+  FTotalLength:=0;
+end;
+
+destructor TJSONDocArray.Destroy;
+begin
+  SetLength(FItems,0);
+  inherited;
+end;
+
+function TJSONDocArray.Get_Item(Index: integer): Variant;
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    if (Index<0) or (Index>=FItemsCount) then
+      raise ERangeError.Create('Index out of range');
+    //parse from string here assuming this won't be needed much
+    if FItems[Index]='null' then
+      Result:=Null
+    else
+      Result:=JSON(FItems[Index]);
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
+function TJSONDocArray.v0(Index: integer): pointer;
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  Result:=nil;//counter warning
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    if FCurrentIndex<>Index then
+     begin
+      if (Index<0) or (Index>=FItemsCount) then
+        raise ERangeError.Create('Index out of range');
+      //parse from string here assuming this won't be needed much
+      if FItems[Index]='null' then
+        FCurrent:=Null
+      else
+        FCurrent:=JSON(FItems[Index]);
+      FCurrentIndex:=Index;
+     end;
+    Result:=@FCurrent;
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
+procedure TJSONDocArray.Set_Item(Index: integer; const Value: Variant);
+var
+  v:WideString;
+  d:IJSONDocument;
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    if (Index<0) or (Index>=FItemsCount) then
+      raise ERangeError.Create('Index out of range');
+    dec(FTotalLength,Length(FItems[Index]));
+    case TVarData(Value).VType of
+      varNull:
+        FITems[Index]:='null';
+      varUnknown:
+        if IUnknown(Value).QueryInterface(IID_IJSONDocument,d)=S_OK then
+          FItems[Index]:=d.ToString
+        else raise EJSONEncodeException.Create(
+          'JSONDocArray.Set_Item requires IJSONDocument instances');
+      else raise EJSONEncodeException.Create(
+        'JSONDocArray.Set_Item requires IJSONDocument instances');
+    end;
+    inc(FTotalLength,Length(v));
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
+function TJSONDocArray.Count: integer;
+begin
+  Result:=FItemsCount;
+end;
+
+procedure TJSONDocArray.Clear;
+var
+  i:integer;
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    for i:=0 to FItemsCount-1 do FItems[i]:='';
+    FItemsCount:=0;
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
+function TJSONDocArray.Add(const Doc: IJSONDocument): integer;
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    if FItemsCount=FItemsSize then
+     begin
+      inc(FItemsSize,$400);//grow
+      SetLength(FItems,FItemsSize);
+     end;
+    //ToString here to save on persisting effort later
+    if Doc=nil then
+      FItems[FItemsCount]:='null'
+    else
+      FItems[FItemsCount]:=Doc.ToString;
+    inc(FTotalLength,Length(FItems[FItemsCount]));
+    Result:=FItemsCount;
+    inc(FItemsCount);
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
+function TJSONDocArray.AddJSON(const Data: WideString): integer;
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    if FItemsCount=FItemsSize then
+     begin
+      inc(FItemsSize,$400);//grow
+      SetLength(FItems,FItemsSize);
+     end;
+    //TODO: check valid JSON?
+    FItems[FItemsCount]:=Data;
+    inc(FTotalLength,Length(Data));
+    Result:=FItemsCount;
+    inc(FItemsCount);
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
+procedure TJSONDocArray.LoadItem(Index: integer; const Doc: IJSONDocument);
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    if (Index<0) or (Index>=FItemsCount) then
+      raise ERangeError.Create('Index out of range');
+    Doc.Clear;
+    if FItems[Index]<>'null' then Doc.Parse(FItems[Index]);
+    //else?
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
+function TJSONDocArray.ToString: WideString;
+var
+  i,x,l:integer;
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    SetLength(Result,FTotalLength+1+FItemsCount);
+    i:=0;
+    x:=1;
+    while i<FItemsCount do
+     begin
+      Result[x]:=',';
+      inc(x);
+      l:=Length(FItems[i]);
+      Move(FItems[i][1],Result[x],l*2);
+      inc(x,l);
+      inc(i);
+     end;
+    Result[1]:='[';
+    Result[x]:=']';
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
 end;
 
 { JSON }
@@ -1297,14 +2298,14 @@ begin
   Result:=TJSONDocument.Create as IJSONDocument;
 end;
 
-function JSON(const x:array of OleVariant):IJSONDocument; //overload;
+function JSON(const x:array of Variant):IJSONDocument; //overload;
 var
   i,l,si,sl:integer;
-  s:array of IJSONDocument;
-  d:IJSONDocument;
+  s:array of TJSONDocument;
+  d:TJSONDocument;
   key:WideString;
 begin
-  d:=TJSONDocument.Create;//d:=JSON;
+  d:=TJSONDocument.Create;
   si:=0;
   sl:=0;
   i:=0;
@@ -1342,7 +2343,7 @@ begin
          end;
         s[si]:=d;
         d:=TJSONDocument.Create;
-        s[si][Copy(key,1,Length(key)-1)]:=d;
+        s[si][Copy(key,1,Length(key)-1)]:=d as IJSONDocument;
         inc(si);
        end
       else
@@ -1358,9 +2359,9 @@ begin
   if si=0 then Result:=d else Result:=s[si-1];
 end;
 
-function JSON(const x: OleVariant): IJSONDocument; overload;
+function JSON(const x: Variant): IJSONDocument; overload;
 begin
-  case VarType(x) of
+  case TVarData(x).VType of
     varNull,varEmpty:Result:=nil;//raise?
     varOleStr,varString:
      begin
@@ -1372,28 +2373,48 @@ begin
   end;
 end;
 
-function JSONEnum(x: IJSONDocument): IJSONEnumerator;
+function JSONEnum(const x: IJSONDocument): IJSONEnumerator;
+var
+  je:IJSONEnumerable;
 begin
   if x=nil then
     Result:=TJSONEnumerator.Create(nil)
   else
-    Result:=(x as IJSONEnumerable).NewEnumerator;
+    //Result:=(x as IJSONEnumerable).NewEnumerator;
+    if x.QueryInterface(IID_IJSONEnumerable,je)=S_OK then
+      Result:=je.NewEnumerator
+    else
+      raise EJSONException.Create('IJSONDocument instance doesn''t implement IJSONEnumerable');
 end;
 
-function JSONEnum(const x: OleVariant): IJSONEnumerator;
+function JSONEnum(const x: Variant): IJSONEnumerator;
+var
+  vt:TVarType;
+  e:IJSONEnumerable;
 begin
-  if VarIsNull(x) then
-    Result:=TJSONEnumerator.Create(nil)
+  vt:=TVarData(x).VType;
+  if (vt and varArray)=0 then
+    case vt of
+      varNull,varEmpty:
+        Result:=TJSONEnumerator.Create(nil);//has .EOF=true
+      varUnknown:
+        if IUnknown(x).QueryInterface(IID_IJSONEnumerable,e)=S_OK then
+          Result:=e.NewEnumerator
+        else
+          raise EJSONException.Create('No supported interface found on object');
+      else
+        raise EJSONException.Create('Unsupported variant type '+IntToHex(vt,4));
+    end
   else
-    Result:=(IUnknown(x) as IJSONEnumerable).NewEnumerator;
+    Result:=TVarArrayEnumerator.Create(@x);
 end;
 
-function JSON(x: IJSONEnumerator): IJSONDocument;
+function JSON(const x: IJSONEnumerator): IJSONDocument;
 begin
   Result:=IUnknown(x.Value) as IJSONDocument;
 end;
 
-function JSONEnum(x: IJSONEnumerator): IJSONEnumerator;
+function JSONEnum(const x: IJSONEnumerator): IJSONEnumerator;
 begin
   if (x=nil) or VarIsNull(x.Value) then
     Result:=TJSONEnumerator.Create(nil)
@@ -1401,204 +2422,52 @@ begin
     Result:=(IUnknown(x.Value) as IJSONEnumerable).NewEnumerator;
 end;
 
-{ TJSONEnumerator }
-
-constructor TJSONEnumerator.Create(Data: TJSONDocument);
+function ja(const Items:array of Variant): IJSONArray;
+var
+  a:TJSONArray;
+  i,l:integer;
 begin
-  inherited Create;
-  FData:=Data;
-  FIndex:=-1;
-  //TODO: hook into TJSONDocument destructor?
+  l:=Length(Items);
+  a:=TJSONArray.Create(l);
+  i:=0;
+  while i<>l do
+   begin
+    a.FData[i]:=Items[i];
+    inc(i);
+   end;
+  Result:=a;
 end;
 
-destructor TJSONEnumerator.Destroy;
+function ja(const Item:Variant): IJSONArray;
 begin
-  FData:=nil;
-  inherited;
+  if (TVarData(Item).VType=varUnknown) and
+    (IUnknown(Item).QueryInterface(IID_IJSONArray,Result)=S_OK) then
+    //ok!
+  else
+  if (TVarData(Item).VType and varArray)<>0 then
+    Result:=TVarJSONArray.Create(Item)
+  else
+    raise EJSONException.Create('Variant is not IJSONArray');
 end;
 
-function TJSONEnumerator.EOF: boolean;
+function JSONDocArray: IJSONDocArray;
+begin
+  Result:=TJSONDocArray.Create;
+end;
+
+function JSONDocArray(const Items:array of IJSONDocument): IJSONDocArray;
 var
   i:integer;
 begin
-  if FData=nil then
-    Result:=true
-  else
-   begin
-    i:=FIndex;
-    if i=-1 then i:=0;
-    while (i<FData.FElementIndex) and
-      (FData.FElements[i].LoadIndex<>FData.FLoadIndex) do
-      inc(i);
-    Result:=i>=FData.FElementIndex;
-   end;
-end;
-
-function TJSONEnumerator.Next: boolean;
-begin
-  if FData=nil then
-    Result:=false
-  else
-   begin
-    inc(FIndex);
-    while (FIndex<FData.FElementIndex) and
-      (FData.FElements[FIndex].LoadIndex<>FData.FLoadIndex) do
-      inc(FIndex);
-    Result:=FIndex<FData.FElementIndex;
-   end;
-end;
-
-function TJSONEnumerator.Get_Key: WideString;
-begin
-  if (FIndex<0) or (FData=nil) or (FIndex>=FData.FElementIndex) then
-    raise ERangeError.Create('Out of range')
-  else
-    Result:=FData.FElements[FIndex].Key;
-end;
-
-function TJSONEnumerator.Get_Value: OleVariant;
-begin
-  if (FIndex<0) or (FData=nil) or (FIndex>=FData.FElementIndex) then
-    raise ERangeError.Create('Out of range')
-  else
-    Result:=FData.FElements[FIndex].Value;
-end;
-
-procedure TJSONEnumerator.Set_Value(const Value: OleVariant);
-begin
-  if (FIndex<0) or (FData=nil) or (FIndex>=FData.FElementIndex) then
-    raise ERangeError.Create('Out of range')
-  else
-    FData.FElements[FIndex].Value:=Value;
-end;
-
-{ JSONDocArray }
-
-function JSONDocArray: IJSONDocArrayBuilder; overload;
-begin
-  Result:=TJSONDocArrayBuilder.Create;
-end;
-
-function JSONDocArray(const Items:array of IJSONDocument):
-  IJSONDocArrayBuilder; overload;
-var
-  i:integer;
-begin
-  Result:=TJSONDocArrayBuilder.Create;
+  Result:=TJSONDocArray.Create;
   for i:=0 to Length(Items)-1 do Result.Add(Items[i]);
 end;
 
-{ TJSONDocArrayBuilder }
-
-constructor TJSONDocArrayBuilder.Create;
-begin
-  inherited Create;
-  FItemsCount:=0;
-  FItemsSize:=0;
-  FTotalLength:=0;
-end;
-
-destructor TJSONDocArrayBuilder.Destroy;
-begin
-  SetLength(FItems,0);
-  inherited;
-end;
-
-function TJSONDocArrayBuilder.Count: integer;
-begin
-  Result:=FItemsCount;
-end;
-
-procedure TJSONDocArrayBuilder.Clear;
-var
-  i:integer;
-begin
-  for i:=0 to FItemsCount-1 do FItems[i]:='';
-  FItemsCount:=0;
-end;
-
-procedure TJSONDocArrayBuilder.LoadItem(Index: integer;
-  Doc: IJSONDocument);
-begin
-  if (Index<0) or (Index>=FItemsCount) then
-    raise ERangeError.Create('Index out of range');
-  Doc.Clear;
-  if FItems[Index]<>'null' then Doc.Parse(FItems[Index]);
-  //else?
-end;
-
-function TJSONDocArrayBuilder.Get_Item(Index: integer): IJSONDocument;
-begin
-  if (Index<0) or (Index>=FItemsCount) then
-    raise ERangeError.Create('Index out of range');
-  //parse from string here assuming this won't be needed much
-  if FItems[Index]='null' then Result:=nil else Result:=JSON(FItems[Index]);
-end;
-
-function TJSONDocArrayBuilder.Add(Doc: IJSONDocument): integer;
-begin
-  if FItemsCount=FItemsSize then
-   begin
-    inc(FItemsSize,$400);//grow
-    SetLength(FItems,FItemsSize);
-   end;
-  //ToString here to save on persisting effort later
-  if Doc=nil then
-    FItems[FItemsCount]:='null'
-  else
-    FItems[FItemsCount]:=Doc.ToString;
-  inc(FTotalLength,Length(FItems[FItemsCount]));
-  Result:=FItemsCount;
-  inc(FItemsCount);
-end;
-
-function TJSONDocArrayBuilder.AddJSON(const Data: WideString): integer;
-begin
-  if FItemsCount=FItemsSize then
-   begin
-    inc(FItemsSize,$400);//grow
-    SetLength(FItems,FItemsSize);
-   end;
-  //TODO: check valid JSON?
-  FItems[FItemsCount]:=Data;
-  inc(FTotalLength,Length(Data));
-  Result:=FItemsCount;
-  inc(FItemsCount);
-end;
-
-procedure TJSONDocArrayBuilder.Set_Item(Index: integer;
-  Doc: IJSONDocument);
-var
-  v:WideString;
-begin
-  if (Index<0) or (Index>=FItemsCount) then
-    raise ERangeError.Create('Index out of range');
-  if Doc=nil then
-    v:='null'
-  else
-    v:=Doc.ToString;
-  inc(FTotalLength,Length(v)-Length(FItems[Index]));
-  FItems[Index]:=v;
-end;
-
-function TJSONDocArrayBuilder.JSONToString: WideString;
-var
-  i,x,l:integer;
-begin
-  SetLength(Result,FTotalLength+1+FItemsCount);
-  i:=0;
-  x:=1;
-  while i<FItemsCount do
-   begin
-    Result[x]:=',';
-    inc(x);
-    l:=Length(FItems[i]);
-    Move(FItems[i][1],Result[x],l*2);
-    inc(x,l);
-    inc(i);
-   end;
-  Result[1]:='[';
-  Result[x]:=']';
-end;
-
+initialization
+  {$IFDEF JSONDOC_DEFAULT_USE_IJSONARRAY}
+  JSON_UseIJSONArray:=true;  //default, see TJSONDocument.Create
+  {$ELSE}
+  JSON_UseIJSONArray:=false; //default, see TJSONDocument.Create
+  {$ENDIF}
 end.
+
