@@ -12,8 +12,8 @@ v1.1.1
 unit jsonDoc;
 
 {$WARN SYMBOL_PLATFORM OFF}
-{xxx$D-}
-{xxx$L-}
+{$D-}
+{$L-}
 
 {
 
