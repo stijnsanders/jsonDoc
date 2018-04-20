@@ -1,3 +1,7 @@
+v1.1.2
+- support '\xXX' string escape sequence
+- don't escape '/' in strings
+
 v1.1.1
 - switch from OleVariant to Variant
 - absorbed jsonTS.pas as conditional define JSONDOC_THREADSAFE
