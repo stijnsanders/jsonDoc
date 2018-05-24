@@ -6,7 +6,7 @@ Copyright 2015-2018 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
-v1.1.2
+v1.1.3
 
 }
 unit jsonDoc;
@@ -22,6 +22,9 @@ Define here or in the project settings
 
   JSONDOC_JSON_STRICT
     to disallow missing quotes around key names
+
+  JSONDOC_JSON_LOOSE
+    to allow missing colons and comma's
 
   JSONDOC_STOREINDENTING
     to make ToString write indentation EOL's and tabs
@@ -668,9 +671,14 @@ var
   procedure Expect(c:WideChar;const msg:string);
   begin
     while (i<=l) and (jsonData[i]<=' ') do inc(i);
-    if (i>l) or (jsonData[i]<>c) then
+    if (i<=l) and (jsonData[i]=c) then
+      inc(i)
+    else
+    {$IFDEF JSONDOC_JSON_LOOSE}
+      ;
+    {$ELSE}
       raise EJSONDecodeException.Create(msg+ExVicinity(i));
-    inc(i);
+    {$ENDIF}
   end;
   procedure GetStringIndexes(var i1,i2:integer);
   begin
@@ -716,7 +724,7 @@ var
               $41..$5A,$61..$7A:w:=((v and $1F)+9) shl 4;
               else raise EJSONDecodeException.Create(
                 'JSON Invalid espace sequence'+ExVicinity(di));
-            end
+            end;
             inc(di);
             if di=i2 then raise EJSONDecodeException.Create(
               'JSON Incomplete espace sequence'+ExVicinity(di));
@@ -885,8 +893,12 @@ begin
           else
            begin
             k1:=i;
-            while (i<=l) and (jsonData[i]>' ') and
-              (jsonData[i]<>':') and (jsonData[i]<>'"') do inc(i);
+            while (i<=l) and (jsonData[i]>' ') and not(
+              (jsonData[i]=':') or (jsonData[i]='"')
+              {$IFDEF JSONDOC_JSON_LOOSE}
+              or (jsonData[i]='{') or (jsonData[i]='[')
+              {$ENDIF}
+              ) do inc(i);
             k2:=i;
            end;
           {$ENDIF}
