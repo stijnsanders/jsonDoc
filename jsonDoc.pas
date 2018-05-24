@@ -26,6 +26,9 @@ Define here or in the project settings
   JSONDOC_JSON_LOOSE
     to allow missing colons and comma's
 
+  JSONDOC_JSON_PASCAL_STRINGS
+    to allow pascal-style strings
+
   JSONDOC_STOREINDENTING
     to make ToString write indentation EOL's and tabs
 
@@ -682,7 +685,9 @@ var
   end;
   procedure GetStringIndexes(var i1,i2:integer);
   begin
+    //assert jsonData[i]='"'
     i1:=i;
+    inc(i);
     while (i<=l) and (jsonData[i]<>'"') do
      begin
       if jsonData[i]='\' then inc(i);//just skip all to skip any '"'
@@ -691,80 +696,200 @@ var
     i2:=i;
     inc(i);
   end;
+  {$IFDEF JSONDOC_JSON_PASCAL_STRINGS}
+  procedure GetPascalIndexes(var i1,i2:integer);
+  begin
+    i1:=i;
+    while (i<=l) and ((jsonData[i]='''') or (jsonData[i]='#')) do
+      if jsonData[i]='''' then
+       begin
+        inc(i);
+        while (i<=l) and (jsonData[i]<>'''') do inc(i);
+        if i<=l then inc(i);
+       end
+      else
+       begin
+        inc(i);
+        if (i<=l) and (jsonData[i]='$') then
+         begin
+          inc(i);
+          while (i<=l) and (word(jsonData[i]) in [$30..$39,$41..$5A,$61..$7A]) do inc(i);
+         end
+        else
+          while (i<=l) and (word(jsonData[i]) in [$30..$39]) do inc(i);
+       end;
+    i2:=i;
+    inc(i);
+  end;
+  {$ENDIF}
   function GetStringValue(i1,i2:integer):WideString;
   var
     ii,di,u,v,w:integer;
   begin
-    //assert jsonData[i1-1]='"'
-    //assert jsonData[i2]='"';
-    SetLength(Result,i2-i1);
-    ii:=1;
-    di:=i1;
-    while di<i2 do
+    //assert i1<=l
+    //assert i2<=l
+    //assert i1<i2
+    {$IFDEF JSONDOC_JSON_PASCAL_STRINGS}
+    if (jsonData[i1]='''') or (jsonData[i1]='#') then
      begin
-      //assert ii<=Length(Result);
-      if jsonData[di]='\' then
+      SetLength(Result,i2-i1);
+      ii:=1;
+      di:=i1;
+      while di<i2 do
        begin
-        inc(di);
         case AnsiChar(jsonData[di]) of
-          '"','\','/':Result[ii]:=jsonData[di];
-          'b':Result[ii]:=#8;
-          't':Result[ii]:=#9;
-          'n':Result[ii]:=#10;
-          'f':Result[ii]:=#12;
-          'r':Result[ii]:=#13;
-          'x':
+          '''':
            begin
             inc(di);
-            if di=i2 then raise EJSONDecodeException.Create(
-              'JSON Incomplete espace sequence'+ExVicinity(di));
-            v:=word(jsonData[di]);
-            case v of
-              $30..$39:w:=(v and $F) shl 4;
-              $41..$5A,$61..$7A:w:=((v and $1F)+9) shl 4;
-              else raise EJSONDecodeException.Create(
-                'JSON Invalid espace sequence'+ExVicinity(di));
-            end;
-            inc(di);
-            if di=i2 then raise EJSONDecodeException.Create(
-              'JSON Incomplete espace sequence'+ExVicinity(di));
-            v:=word(jsonData[di]);
-            case v of
-              $30..$39:w:=w or (v and $F);
-              $41..$5A,$61..$7A:w:=w or ((v and $1F)+9);
-              else raise EJSONDecodeException.Create(
-                'JSON Invalid espace sequence'+ExVicinity(di));
-            end;
-            Result[ii]:=WideChar(w);
+            u:=0;
+            while (di<i2) and (u=0) do
+             begin
+              if jsonData[di]='''' then
+               begin
+                inc(di);
+                if (di<=l) and (jsonData[di]='''') then
+                 begin
+                  Result[ii]:='''';
+                  inc(ii);
+                  inc(di);
+                 end
+                else
+                  u:=1;
+               end
+              else
+               begin
+                Result[ii]:=jsonData[di];
+                inc(ii);
+                inc(di);
+               end;
+             end;
            end;
-          'u':
+          '#':
            begin
-            w:=0;
-            for u:=0 to 3 do
+            inc(di);
+            if (di<i2) and (jsonData[di]='$') then
+             begin
+              w:=0;
+              u:=0;
+              inc(di);
+              while (u<4) and (di<i2) and (word(jsonData[di]) in [$30..$39,$41..$5A,$61..$7A]) do
+               begin
+                if di=i2 then raise EJSONDecodeException.Create(
+                  'JSON Incomplete espace sequence'+ExVicinity(di));
+                v:=word(jsonData[di]);
+                case v of
+                  $30..$39:w:=(w shl 4) or (v and $F);
+                  $41..$5A,$61..$7A:w:=(w shl 4) or ((v and $1F)+9);
+                  else raise EJSONDecodeException.Create(
+                    'JSON Invalid espace sequence'+ExVicinity(di));
+                end;
+                inc(di);
+                inc(u);
+               end;
+              Result[ii]:=WideChar(w);
+              inc(ii);
+             end
+            else
+             begin
+              w:=0;
+              u:=0;
+              while (u<5) and (di<i2) and (word(jsonData[di]) in [$30..$39]) do
+               begin
+                if di=i2 then raise EJSONDecodeException.Create(
+                  'JSON Incomplete espace sequence'+ExVicinity(di));
+                w:=w*10+(word(jsonData[di]) and $F);
+                inc(di);
+                inc(u);
+               end;
+              Result[ii]:=WideChar(w);
+              inc(ii);
+             end;
+           end;
+          else raise EJSONDecodeException.Create(
+            'JSON Unknown pascal string syntax'+ExVicinity(di));
+        end;
+       end;
+      SetLength(Result,ii-1);
+     end
+    else
+    {$ENDIF}
+     begin
+      {$IFDEF JSONDOC_JSON_STRICT}
+      //assert jsonData[i1]='"'
+      //assert jsonData[i2]='"';
+      inc(i1);
+      {$ELSE}
+      if jsonData[i1]='"' then inc(i1);
+      {$ENDIF}
+      SetLength(Result,i2-i1);
+      ii:=1;
+      di:=i1;
+      while di<i2 do
+       begin
+        //assert ii<=Length(Result);
+        if jsonData[di]='\' then
+         begin
+          inc(di);
+          case AnsiChar(jsonData[di]) of
+            '"','\','/':Result[ii]:=jsonData[di];
+            'b':Result[ii]:=#8;
+            't':Result[ii]:=#9;
+            'n':Result[ii]:=#10;
+            'f':Result[ii]:=#12;
+            'r':Result[ii]:=#13;
+            'x':
              begin
               inc(di);
               if di=i2 then raise EJSONDecodeException.Create(
                 'JSON Incomplete espace sequence'+ExVicinity(di));
               v:=word(jsonData[di]);
               case v of
-                $30..$39:w:=(w shl 4) or (v and $F);
-                $41..$5A,$61..$7A:w:=(w shl 4) or ((v and $1F)+9);
+                $30..$39:w:=(v and $F) shl 4;
+                $41..$5A,$61..$7A:w:=((v and $1F)+9) shl 4;
                 else raise EJSONDecodeException.Create(
                   'JSON Invalid espace sequence'+ExVicinity(di));
               end;
+              inc(di);
+              if di=i2 then raise EJSONDecodeException.Create(
+                'JSON Incomplete espace sequence'+ExVicinity(di));
+              v:=word(jsonData[di]);
+              case v of
+                $30..$39:w:=w or (v and $F);
+                $41..$5A,$61..$7A:w:=w or ((v and $1F)+9);
+                else raise EJSONDecodeException.Create(
+                  'JSON Invalid espace sequence'+ExVicinity(di));
+              end;
+              Result[ii]:=WideChar(w);
              end;
-            Result[ii]:=WideChar(w);
-           end;
-          else raise EJSONDecodeException.Create(
-            'JSON Unknown escape sequence'+ExVicinity(di));
-        end;
-       end
-      else
-        Result[ii]:=jsonData[di];
-      inc(di);
-      inc(ii);
+            'u':
+             begin
+              w:=0;
+              for u:=0 to 3 do
+               begin
+                inc(di);
+                if di=i2 then raise EJSONDecodeException.Create(
+                  'JSON Incomplete espace sequence'+ExVicinity(di));
+                v:=word(jsonData[di]);
+                case v of
+                  $30..$39:w:=(w shl 4) or (v and $F);
+                  $41..$5A,$61..$7A:w:=(w shl 4) or ((v and $1F)+9);
+                  else raise EJSONDecodeException.Create(
+                    'JSON Invalid espace sequence'+ExVicinity(di));
+                end;
+               end;
+              Result[ii]:=WideChar(w);
+             end;
+            else raise EJSONDecodeException.Create(
+              'JSON Unknown escape sequence'+ExVicinity(di));
+          end;
+         end
+        else
+          Result[ii]:=jsonData[di];
+        inc(di);
+        inc(ii);
+       end;
+      SetLength(Result,ii-1);
      end;
-    SetLength(Result,ii-1);
   end;
 const
   stackGrowStep=$20;//not too much, not too little (?)
@@ -881,27 +1006,30 @@ begin
         if not(IsArray) and (SkipWhiteSpace<>'}') then
          begin
           //key string
-          {$IFDEF JSONDOC_JSON_STRICT}
-          Expect('"','JSON key string not enclosed in double quotes');
-          GetStringIndexes(k1,k2);
-          {$ELSE}
-          if SkipWhiteSpace='"' then
-           begin
-            inc(i);
-            GetStringIndexes(k1,k2);
-           end
-          else
-           begin
-            k1:=i;
-            while (i<=l) and (jsonData[i]>' ') and not(
-              (jsonData[i]=':') or (jsonData[i]='"')
-              {$IFDEF JSONDOC_JSON_LOOSE}
-              or (jsonData[i]='{') or (jsonData[i]='[')
-              {$ENDIF}
-              ) do inc(i);
-            k2:=i;
-           end;
-          {$ENDIF}
+          case AnsiChar(SkipWhiteSpace) of
+            '"':
+              GetStringIndexes(k1,k2);
+            {$IFDEF JSONDOC_JSON_PASCAL_STRINGS}
+            '''','#':
+              GetPascalIndexes(k1,k2);
+            {$ENDIF}
+            else
+            {$IFDEF JSONDOC_JSON_STRICT}
+              raise EJSONDecodeException.Create(
+                'JSON key string not enclosed in double quotes'+ExVicinity(i));
+            {$ELSE}
+             begin
+              k1:=i;
+              while (i<=l) and (jsonData[i]>' ') and not(
+                (jsonData[i]=':') or (jsonData[i]='"')
+                {$IFDEF JSONDOC_JSON_LOOSE}
+                or (jsonData[i]='{') or (jsonData[i]='[')
+                {$ENDIF}
+                ) do inc(i);
+              k2:=i;
+             end;
+            {$ENDIF}
+          end;
           Expect(':','JSON key, value not separated by colon');
          end;
         //value
@@ -1003,13 +1131,23 @@ begin
 
           '"'://string
            begin
-            inc(i);
             GetStringIndexes(v1,v2);
             if da=nil then
               SetValue(GetStringValue(v1,v2))
             else
               CheckValue;
            end;
+
+          {$IFDEF JSONDOC_JSON_PASCAL_STRINGS}
+          '''','#'://pascal-style string
+           begin
+            GetPascalIndexes(v1,v2);
+            if da=nil then
+              SetValue(GetStringValue(v1,v2))
+            else
+              CheckValue;
+           end;
+          {$ENDIF}
 
           '0'..'9','-'://number
            begin
@@ -1019,7 +1157,7 @@ begin
             if da=nil then
              begin
               v64:=0;
-              while (i<=l) and (AnsiChar(jsonData[i]) in ['0'..'9']) do
+              while (i<=l) and (word(jsonData[i]) in [$30..$39]) do
                begin
                 v64:=v64*10+(word(jsonData[i]) and $F);//TODO: detect overflow
                 inc(i);
@@ -1048,7 +1186,7 @@ begin
              begin
               //skip
               CheckValue;
-              while (i<=l) and (AnsiChar(jsonData[i]) in ['0'..'9']) do inc(i);
+              while (i<=l) and (word(jsonData[i]) in [$30..$39]) do inc(i);
               if AnsiChar(jsonData[i]) in ['.','e','E'] then
                begin
                 inc(i);
@@ -1085,8 +1223,26 @@ begin
             //TODO: support null in IJSONDocArray
            end;
 
-          else raise EJSONDecodeException.Create(
-            'JSON Unrecognized value type'+ExVicinity(i));
+          else
+          {$IFDEF JSONDOC_JSON_LOOSE}
+           begin
+            v1:=i;
+            while (i<=l) and (jsonData[i]>' ') and not(
+              (jsonData[i]=':') or (jsonData[i]='"')
+              {$IFDEF JSONDOC_JSON_LOOSE}
+              or (jsonData[i]='{') or (jsonData[i]='[')
+              {$ENDIF}
+              ) do inc(i);
+            v2:=i;
+            if da=nil then
+              SetValue(GetStringValue(v1,v2))
+            else
+              CheckValue;
+           end;
+          {$ELSE}
+            raise EJSONDecodeException.Create(
+              'JSON Unrecognized value type'+ExVicinity(i));
+          {$ENDIF}
         end;
         if not firstItem then
          begin
@@ -1174,8 +1330,10 @@ begin
            end;
          end;
        end;
+      {$IFNDEF JSONDOC_JSON_LOOSE}
       if stackIndex<>-1 then raise EJSONDecodeException.Create(
         'JSON with '+IntToStr(stackIndex+1)+' objects or arrays not closed');
+      {$ENDIF}
     finally
       {$if CompilerVersion >= 24}
       FormatSettings.DecimalSeparator:=ods;

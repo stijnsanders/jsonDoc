@@ -96,11 +96,11 @@ PackageDLLOutputDir=
 PackageDCPOutputDir=
 SearchPath=
 Packages=vcl;rtl;vclie;xmlrtl;inet;inetdbbde;inetdbxpress;vclx;dbrtl;soaprtl;dsnap;VclSmp;dbexpress;vcldb;dbxcds;adortl;ibxpress;vclactnband;bdertl;vclshlctrls
-Conditionals=
+Conditionals=JSONDOC_JSON_PASCAL_STRINGS;JSONDOC_JSON_LOOSE
 DebugSourceDirs=
 UsePackages=0
 [Parameters]
-RunParams=test/arrofarr.json
+RunParams=test/pascal_loose.json
 HostApplication=
 Launcher=
 UseLauncher=0
@@ -130,3 +130,12 @@ OriginalFilename=
 ProductName=jsonDoc
 ProductVersion=1.0.0.0
 Comments=http://yoy.be/jsonV.html
+[HistoryLists\hlConditionals]
+Count=1
+Item0=JSONDOC_JSON_PASCAL_STRINGS;JSONDOC_JSON_LOOSE
+[HistoryLists\hlUnitAliases]
+Count=1
+Item0=WinTypes=Windows;WinProcs=Windows;DbiTypes=BDE;DbiProcs=BDE;DbiErrs=BDE;
+[HistoryLists\hlUnitOutputDirectory]
+Count=1
+Item0=dcu
