@@ -1024,6 +1024,7 @@ begin
                 (jsonData[i]=':') or (jsonData[i]='"')
                 {$IFDEF JSONDOC_JSON_LOOSE}
                 or (jsonData[i]='{') or (jsonData[i]='[')
+                or (jsonData[i]='=')
                 {$ENDIF}
                 ) do inc(i);
               k2:=i;
@@ -1031,6 +1032,9 @@ begin
             {$ENDIF}
           end;
           Expect(':','JSON key, value not separated by colon');
+          {$IFDEF JSONDOC_JSON_LOOSE}
+          if (i<=l) and (jsonData[i]='=') then inc(i);
+          {$ENDIF}
          end;
         //value
         case AnsiChar(SkipWhiteSpace) of
