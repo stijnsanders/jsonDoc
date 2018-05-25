@@ -1151,6 +1151,31 @@ begin
             else
               CheckValue;
            end;
+          '$'://pascal-style hex digit
+           begin
+            inc(i);
+            v1:=i;
+            v64:=0;
+            while (i<=l) and (word(jsonData[i]) in [$30..$39,$41..$5A,$61..$7A]) do
+             begin
+              case word(jsonData[i]) of
+                $30..$39:v64:=(v64 shl 4) or (word(jsonData[i]) and $F);
+                $41..$5A,$61..$7A:v64:=(v64 shl 4) or ((word(jsonData[i]) and $1F)+9);
+                else raise EJSONDecodeException.Create(
+                  'JSON Invalid espace sequence'+ExVicinity(i));
+              end;
+              inc(i);
+             end;
+            if i=v1 then
+              raise EJSONDecodeException.Create(
+                'JSON Unrecognized value type'+ExVicinity(i));
+            if v64>=$80000000 then //int64
+              SetValue(v64)
+            else if v64>=$80 then //int32
+              SetValue(integer(v64))
+            else //int8
+              SetValue(SmallInt(v64));
+           end;
           {$ENDIF}
 
           '0'..'9','-'://number
