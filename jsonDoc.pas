@@ -719,7 +719,6 @@ var
           while (i<=l) and (word(jsonData[i]) in [$30..$39]) do inc(i);
        end;
     i2:=i;
-    inc(i);
   end;
   {$ENDIF}
   function GetStringValue(i1,i2:integer):WideString;
