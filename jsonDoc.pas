@@ -719,7 +719,6 @@ var
           while (i<=l) and (word(jsonData[i]) in [$30..$39]) do inc(i);
        end;
     i2:=i;
-    inc(i);
   end;
   {$ENDIF}
   function GetStringValue(i1,i2:integer):WideString;
@@ -1545,6 +1544,51 @@ const
   tabs=#13#10#9#9#9#9#9#9#9#9#9#9#9#9#9#9;
 var
   tabIndex:integer;
+  procedure wr(const xx,yy,zz:WideString);
+  var
+    xi,xj,xk,xl,yi,yl,zl:cardinal;
+  begin
+    xi:=1;
+    xl:=Length(xx);
+    yl:=Length(yy);//assert <>0
+    zl:=Length(zz);
+    while xi<=xl do
+     begin
+      xj:=xi;
+      yi:=0;
+      while (xi<=xl) and (yi<yl) do
+       begin
+        if (xx[xi]=yy[1]) and (xi+yl<=xl) then
+         begin
+          while (yi<yl) and (xx[xi+yi]=yy[1+yi]) do inc(yi);
+          if yi<yl then inc(xi);
+         end
+        else
+          inc(xi);
+       end;
+      xk:=xi-xj;
+      while wi+xk>wl do
+       begin
+        //grow
+        inc(wl,resultGrowStep);
+        SetLength(Result,wl);
+       end;
+      Move(xx[xj],Result[wi+1],xk*2);
+      inc(wi,xk);
+      if xi<=xl then
+       begin
+        inc(xi,yl);
+        while wi+zl>wl do
+         begin
+          //grow
+          inc(wl,resultGrowStep);
+          SetLength(Result,wl);
+         end;
+        Move(zz[1],Result[wi+1],zl*2);
+        inc(wi,zl);
+       end;
+     end;
+  end;
 {$ENDIF}
   procedure w(const xx:WideString);
   var
@@ -1686,14 +1730,16 @@ begin
                 else
                 if uu.QueryInterface(IID_IJSONDocArray,da)=S_OK then
                  begin
-                  //TODO: re-do indenting
+                  {$IFDEF JSONDOC_STOREINDENTING}
+                  wr(da.ToString,#13#10,Copy(tabs,1,tabIndex));
+                  {$ELSE}
                   w(da.ToString);
+                  {$ENDIF}
                   da:=nil;
                  end
                 else
                 if uu.QueryInterface(IID_IJSONArray,da1)=S_OK then
                  begin
-                  //TODO: re-do indenting
                   Push(TJSONArrayEnumerator.Create(da1),true);
                   da1:=nil;
                  end
