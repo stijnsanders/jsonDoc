@@ -1224,6 +1224,37 @@ begin
              end;
            end;
 
+          {$IFDEF JSONDOC_JSON_LOOSE}
+          else
+           begin
+            v1:=i;
+            while (i<=l) and (jsonData[i]>' ') and not(
+              (jsonData[i]=':') or (jsonData[i]='"')
+              or (jsonData[i]='{') or (jsonData[i]='[')
+              ) do inc(i);
+            v2:=i;
+            if v1=v2 then
+              raise EJSONDecodeException.Create(
+                'JSON Value expected'+ExVicinity(i));
+            if da=nil then
+              if (v2-v1=4) and (jsonData[v1]='t') and (jsonData[v1+1]='r') and
+                (jsonData[v1+2]='u') and (jsonData[v1+3]='e') then
+                SetValue(true)
+              else
+              if (v2-v1=5) and (jsonData[v1]='f') and (jsonData[v1+1]='a') and
+                (jsonData[v1+2]='l') and (jsonData[v1+3]='s') and (jsonData[v1+4]='e') then
+                SetValue(false)
+              else
+              if (v2-v1=4) and (jsonData[v1]='n') and (jsonData[v1+1]='u') and
+                (jsonData[v1+2]='l') and (jsonData[v1+3]='l') then
+                SetValue(Null)
+              else
+                SetValue(GetStringValue(v1,v2))
+            else
+              CheckValue;
+           end;
+          {$ELSE}
+
           't'://true
            begin
             inc(i);
@@ -1252,22 +1283,6 @@ begin
            end;
 
           else
-          {$IFDEF JSONDOC_JSON_LOOSE}
-           begin
-            v1:=i;
-            while (i<=l) and (jsonData[i]>' ') and not(
-              (jsonData[i]=':') or (jsonData[i]='"')
-              {$IFDEF JSONDOC_JSON_LOOSE}
-              or (jsonData[i]='{') or (jsonData[i]='[')
-              {$ENDIF}
-              ) do inc(i);
-            v2:=i;
-            if da=nil then
-              SetValue(GetStringValue(v1,v2))
-            else
-              CheckValue;
-           end;
-          {$ELSE}
             raise EJSONDecodeException.Create(
               'JSON Unrecognized value type'+ExVicinity(i));
           {$ENDIF}
