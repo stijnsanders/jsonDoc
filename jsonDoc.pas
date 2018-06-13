@@ -1229,8 +1229,11 @@ begin
            begin
             v1:=i;
             while (i<=l) and (jsonData[i]>' ') and not(
-              (jsonData[i]=':') or (jsonData[i]='"')
-              or (jsonData[i]='{') or (jsonData[i]='[')
+              (jsonData[i]=':') or (jsonData[i]=',') or (jsonData[i]='"')
+              or (jsonData[i]='}') or (jsonData[i]=']')
+              {$IFDEF JSONDOC_JSON_PASCAL_STRINGS}
+              or (jsonData[i]='''')
+              {$ENDIF}
               ) do inc(i);
             v2:=i;
             if v1=v2 then
