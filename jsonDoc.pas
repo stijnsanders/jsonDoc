@@ -143,9 +143,10 @@ type
   IJSONDocArray = interface(IJSONArray)
     ['{4A534F4E-0001-0006-C000-000000000006}']
     function Add(const Doc: IJSONDocument): integer; stdcall;
-    function AddJson(const Data: WideString): integer; stdcall;
+    function AddJSON(const Data: WideString): integer; stdcall;
     procedure LoadItem(Index: integer; const Doc: IJSONDocument); stdcall;
     procedure Clear; stdcall;
+    function GetJSON(Index: integer): WideString; stdcall;
   end;
 
 {
@@ -367,10 +368,11 @@ type
     //function IJSONArray.ToString=JSONToString;
     //IJSONDocArray
     function Add(const Doc: IJSONDocument): integer; stdcall;
-    function AddJson(const Data: WideString): integer; stdcall;
+    function AddJSON(const Data: WideString): integer; stdcall;
     procedure LoadItem(Index: integer; const Doc: IJSONDocument); stdcall;
     function IJSONDocArray.ToString=JSONToString;
     procedure Clear; stdcall;
+    function GetJSON(Index: integer): WideString; stdcall;
   public
     constructor Create;
     destructor Destroy; override;
@@ -2447,7 +2449,7 @@ begin
     dec(FTotalLength,Length(FItems[Index]));
     case TVarData(Value).VType of
       varNull:
-        FITems[Index]:='null';
+        FItems[Index]:='null';
       varUnknown:
         if IUnknown(Value).QueryInterface(IID_IJSONDocument,d)=S_OK then
           FItems[Index]:=d.ToString
@@ -2553,6 +2555,23 @@ begin
   {$ENDIF}
 end;
 
+function TJSONDocArray.GetJSON(Index: integer): WideString; stdcall;
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    if (Index<0) or (Index>=FItemsCount) then
+      raise ERangeError.Create('Index out of range');
+    Result:=FItems[Index];
+    //else?
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
 function TJSONDocArray.JSONToString: WideString;
 var
   i,x,l:integer;
@@ -2561,20 +2580,25 @@ begin
   EnterCriticalSection(FLock);
   try
   {$ENDIF}
-    SetLength(Result,FTotalLength+1+FItemsCount);
-    i:=0;
-    x:=1;
-    while i<FItemsCount do
+    if FItemsCount=0 then
+      Result:='[]'
+    else
      begin
-      Result[x]:=',';
-      inc(x);
-      l:=Length(FItems[i]);
-      Move(FItems[i][1],Result[x],l*2);
-      inc(x,l);
-      inc(i);
+      SetLength(Result,FTotalLength+1+FItemsCount);
+      i:=0;
+      x:=1;
+      while i<FItemsCount do
+       begin
+        Result[x]:=',';
+        inc(x);
+        l:=Length(FItems[i]);
+        Move(FItems[i][1],Result[x],l*2);
+        inc(x,l);
+        inc(i);
+       end;
+      Result[1]:='[';
+      Result[x]:=']';
      end;
-    Result[1]:='[';
-    Result[x]:=']';
   {$IFDEF JSONDOC_THREADSAFE}
   finally
     LeaveCriticalSection(FLock);
