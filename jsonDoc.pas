@@ -313,7 +313,7 @@ type
   TJSONArray class
   Default ILightArray implementation
 }
-  TJSONArray = class(TJSONImplBaseObj, IJSONArray)
+  TJSONArray = class(TJSONImplBaseObj, IJSONArray, IJSONEnumerable)
   private
     FData:array of Variant;
   protected
@@ -323,6 +323,7 @@ type
     function JSONToString: WideString; stdcall;
     function IJSONArray.ToString=JSONToString;
     function v0(Index: integer): pointer; stdcall;
+    function NewEnumerator: IJSONEnumerator; stdcall;
   public
     constructor Create(Size: integer);
   end;
@@ -2306,6 +2307,11 @@ begin
     LeaveCriticalSection(FLock);
   end;
   {$ENDIF}
+end;
+
+function TJSONArray.NewEnumerator: IJSONEnumerator;
+begin
+  Result:=TJSONArrayEnumerator.Create(Self);
 end;
 
 { TJSONArrayEnumerator }

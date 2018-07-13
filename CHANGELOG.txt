@@ -2,6 +2,7 @@ v1.1.3
 - JSONDOC_JSON_LOOSE define to allow missing colons or comma's
 - JSONDOC_JSON_PASCAL_STRINGS define to allow pascal-style string literals
 - IJSONDocArray.GetJSON
+- TJSONArray now does IJSONEnumerable
 
 v1.1.2
 - support '\xXX' string escape sequence
