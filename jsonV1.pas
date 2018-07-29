@@ -37,7 +37,7 @@ type
     procedure ShowValue(xData: IJSONDocument; const xKey: WideString;
       xIndex: integer; const xValue: Variant);
   end;
-
+      
 var
   frmJsonViewer: TfrmJsonViewer;
 

@@ -6,7 +6,7 @@ Copyright 2015-2018 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
-v1.1.3
+v1.1.4
 
 }
 unit jsonDoc;
@@ -42,8 +42,7 @@ Define here or in the project settings
 
 interface
 
-uses
-  ComObj, ActiveX, SysUtils, WinTypes;
+uses SysUtils;
 
 const
   //COM GUID's
@@ -433,8 +432,7 @@ type
 
 implementation
 
-uses
-  Classes, Variants, Windows;
+uses Variants, Windows;
 
 procedure VarMove(var Dest, Src: Variant);
 begin
