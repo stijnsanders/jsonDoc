@@ -6,7 +6,7 @@ Copyright 2015-2018 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
-v1.1.4
+v1.1.5
 
 }
 unit jsonDoc;
@@ -684,7 +684,7 @@ var
       raise EJSONDecodeException.Create(msg+ExVicinity(i));
     {$ENDIF}
   end;
-  procedure GetStringIndexes(var i1,i2:integer);
+    procedure GetStringIndexes(var i1,i2:integer);
   begin
     //assert jsonData[i]='"'
     i1:=i;
@@ -1381,6 +1381,8 @@ begin
       if stackIndex<>-1 then raise EJSONDecodeException.Create(
         'JSON with '+IntToStr(stackIndex+1)+' objects or arrays not closed');
       {$ENDIF}
+      if (i<=l) and (SkipWhiteSpace<>#0) then raise EJSONDecodeException.Create(
+        'JSON has unexpected data after root document '+ExVicinity(i));
     finally
       {$if CompilerVersion >= 24}
       FormatSettings.DecimalSeparator:=ods;
