@@ -180,7 +180,6 @@ begin
             for i:=0 to Length(ii)-1 do
               v:=v[VarArrayLowBound(v,1)+ii[i]];
            end;
-          //case VarType(v)
           if VarIsArray(v) then
            begin
             i:=VarArrayLowBound(v,1);
@@ -195,12 +194,9 @@ begin
              end;
            end
           else
-          case VarType(v) of
-            varUnknown:
-              if IUnknown(v).QueryInterface(IJSONDocument,x)=S_OK then
-                ExpandJSON(p,x);
-              //else
-          end;
+          if (TVarData(v).VType=varUnknown) and (TVarData(v).VUnknown<>nil) and
+            (IUnknown(v).QueryInterface(IJSONDocument,x)=S_OK) then
+            ExpandJSON(p,x);
          end
       else
         //no p.Data
@@ -271,7 +267,7 @@ begin
   Data:=xData;
   Key:=xKey;
   Index:=xIndex;
-  vt:=VarType(xValue);
+  vt:=TVarData(xValue).VType;
   if (vt and varArray)<>0 then
    begin
     l:=VarArrayHighBound(xValue,1)-
@@ -297,7 +293,8 @@ begin
         else
           Text:=Text+' (bool) false';
       varUnknown,varDispatch:
-        if IUnknown(xValue).QueryInterface(IJSONDocument,d)=S_OK then
+        if (TVarData(xValue).VUnknown<>nil) and
+          (IUnknown(xValue).QueryInterface(IJSONDocument,d)=S_OK) then
          begin
           e:=(d as IJSONEnumerable).NewEnumerator;
           if e.EOF then s:='{}' else
@@ -306,7 +303,7 @@ begin
             while e.Next and (Length(s)<255) do
              begin
               s:=s+', '+e.Key;
-              vt:=VarType(e.Value);
+              vt:=TVarData(e.Value).VType;
               case vt of
                 varNull,varEmpty:;//s:=s+': null';
                 varOleStr,varString:
@@ -364,9 +361,10 @@ begin
     p:=TreeView1.Selected as TJSONNode;
     v:=p.Data[p.Key];
     if p.Index<>-1 then v:=v[VarArrayLowBound(v,1)+p.Index];
-    case VarType(v) of
+    case TVarData(v).VType of
       varUnknown,varDispatch:
-        if IUnknown(v).QueryInterface(IJSONDocument,d)=S_OK then
+        if (TVarData(v).VUnknown<>nil) and
+          (IUnknown(v).QueryInterface(IJSONDocument,d)=S_OK) then
           Clipboard.AsText:=d.ToString;
       else Clipboard.AsText:=VarToStr(v);
     end;
@@ -403,8 +401,8 @@ begin
        begin
         v:=p.Data[p.Key];
         if p.Index<>-1 then v:=v[VarArrayLowBound(v,1)+p.Index];
-        //case VarType(v) of
-        if (VarType(v)=varUnknown) and
+        //case TVarData(v).VType of
+        if (TVarData(v).VType=varUnknown) and (TVarData(v).VUnknown<>nil) and
           (IUnknown(v).QueryInterface(IJSONDocument,d)=S_OK) then
           Clipboard.AsText:=d.ToString
         else

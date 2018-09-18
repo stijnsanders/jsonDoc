@@ -6,7 +6,7 @@ Copyright 2015-2018 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
-v1.1.5
+v1.1.6
 
 }
 unit jsonDoc;
@@ -1070,6 +1070,7 @@ begin
                   else
                     v:=Null;
                   if (TVarData(v).VType in [varDispatch,varUnknown]) and
+                    (TVarData(v).VUnknown<>nil) and
                     (IUnknown(v).QueryInterface(IID_IJSONDocument,d1)=S_OK) then
                     d1:=nil
                   else
@@ -1092,6 +1093,7 @@ begin
                   v:=dr.ReUse(key);
                   dr:=nil;
                   if (TVarData(v).VType in [varDispatch,varUnknown]) and
+                    (TVarData(v).VUnknown<>nil) and
                     (IUnknown(v).QueryInterface(IID_IJSONDocArray,da)=S_OK) then
                    begin
                     da0:=stackIndex+1;
@@ -1866,6 +1868,9 @@ begin
       if TVarData(FElements[i].Value).VType=varUnknown then
        begin
         uu:=IUnknown(FElements[i].Value);
+        if uu=nil then
+          VarClear(FElements[i].Value)
+        else
         if uu.QueryInterface(IID_IJSONDocument,d)=S_OK then
          begin
           d.Clear;
@@ -1906,6 +1911,9 @@ begin
       if TVarData(FElements[GotIndex].Value).VType=varUnknown then
        begin
         uu:=IUnknown(FElements[GotIndex].Value);
+        if uu=nil then
+          VarClear(FElements[GotIndex].Value)
+        else
         if uu.QueryInterface(IID_IJSONDocument,d)=S_OK then
          begin
           d.Clear;
@@ -2457,7 +2465,8 @@ begin
       varNull:
         FItems[Index]:='null';
       varUnknown:
-        if IUnknown(Value).QueryInterface(IID_IJSONDocument,d)=S_OK then
+        if (TVarData(Value).VUnknown<>nil) and
+          (IUnknown(Value).QueryInterface(IID_IJSONDocument,d)=S_OK) then
           FItems[Index]:=d.ToString
         else raise EJSONEncodeException.Create(
           'JSONDocArray.Set_Item requires IJSONDocument instances');
@@ -2719,7 +2728,8 @@ begin
       varNull,varEmpty:
         Result:=TJSONEnumerator.Create(nil);//has .EOF=true
       varUnknown:
-        if IUnknown(x).QueryInterface(IID_IJSONEnumerable,e)=S_OK then
+        if (TVarData(x).VUnknown<>nil) and
+          (IUnknown(x).QueryInterface(IID_IJSONEnumerable,e)=S_OK) then
           Result:=e.NewEnumerator
         else
           raise EJSONException.Create('No supported interface found on object');
@@ -2762,6 +2772,7 @@ end;
 function ja(const Item:Variant): IJSONArray;
 begin
   if (TVarData(Item).VType=varUnknown) and
+    (TVarData(Item).VUnknown<>nil) and
     (IUnknown(Item).QueryInterface(IID_IJSONArray,Result)=S_OK) then
     //ok!
   else
