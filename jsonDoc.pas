@@ -6,7 +6,7 @@ Copyright 2015-2018 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
-v1.1.6
+v1.1.7
 
 }
 unit jsonDoc;
@@ -355,7 +355,7 @@ type
   TJSONDocArray = class(TJSONImplBaseObj, IJSONArray, IJSONDocArray)
   private
     FItems:array of WideString;
-    FItemsCount,FItemsSize,FTotalLength,FCurrentIndex:integer;
+    FItemsCount,FItemsSize,FCurrentIndex:integer;
     FCurrent:Variant;
   protected
     //IJSONArray
@@ -662,7 +662,9 @@ var
   end;
   function ExVicinity(di:integer):WideString;
   const
-    VicinityExtent=8;
+    VicinityExtent=12;
+  var
+    i:integer;
   begin
     if di<=VicinityExtent then
       Result:=#13#10'(#'+IntToStr(di)+')"'+Copy(jsonData,1,di-1)+
@@ -671,6 +673,8 @@ var
       Result:=#13#10'(#'+IntToStr(di)+')"...'+
         Copy(jsonData,di-VicinityExtent,VicinityExtent)+
         ' >>> '+jsonData[di]+' <<< '+Copy(jsonData,di+1,VicinityExtent)+'"';
+    for i:=1 to Length(Result) do
+      if word(Result[i])<32 then Result[i]:='|';
   end;
   procedure Expect(c:WideChar;const msg:string);
   begin
@@ -2394,7 +2398,6 @@ begin
   inherited Create;
   FItemsCount:=0;
   FItemsSize:=0;
-  FTotalLength:=0;
 end;
 
 destructor TJSONDocArray.Destroy;
@@ -2451,7 +2454,6 @@ end;
 
 procedure TJSONDocArray.Set_Item(Index: integer; const Value: Variant);
 var
-  v:WideString;
   d:IJSONDocument;
 begin
   {$IFDEF JSONDOC_THREADSAFE}
@@ -2460,7 +2462,6 @@ begin
   {$ENDIF}
     if (Index<0) or (Index>=FItemsCount) then
       raise ERangeError.Create('Index out of range');
-    dec(FTotalLength,Length(FItems[Index]));
     case TVarData(Value).VType of
       varNull:
         FItems[Index]:='null';
@@ -2473,7 +2474,6 @@ begin
       else raise EJSONEncodeException.Create(
         'JSONDocArray.Set_Item requires IJSONDocument instances');
     end;
-    inc(FTotalLength,Length(v));
   {$IFDEF JSONDOC_THREADSAFE}
   finally
     LeaveCriticalSection(FLock);
@@ -2519,7 +2519,6 @@ begin
       FItems[FItemsCount]:='null'
     else
       FItems[FItemsCount]:=Doc.ToString;
-    inc(FTotalLength,Length(FItems[FItemsCount]));
     Result:=FItemsCount;
     inc(FItemsCount);
   {$IFDEF JSONDOC_THREADSAFE}
@@ -2542,7 +2541,6 @@ begin
      end;
     //TODO: check valid JSON?
     FItems[FItemsCount]:=Data;
-    inc(FTotalLength,Length(Data));
     Result:=FItemsCount;
     inc(FItemsCount);
   {$IFDEF JSONDOC_THREADSAFE}
@@ -2599,7 +2597,10 @@ begin
       Result:='[]'
     else
      begin
-      SetLength(Result,FTotalLength+1+FItemsCount);
+      l:=FItemsCount+1;
+      for i:=0 to FItemsCount-1 do
+        inc(l,Length(FItems[i]));
+      SetLength(Result,l);
       i:=0;
       x:=1;
       while i<FItemsCount do
