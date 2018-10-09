@@ -917,71 +917,72 @@ var
       a[ai]:=v;
       //detect same type elements array
       vt:=TVarData(v).VType;
-      if at=varEmpty then at:=vt else
-        case at of
-          varShortInt,varByte://i1,u1
-            case vt of
-              varSmallInt,varInteger,varSingle,varDouble,
-              varLongWord,varInt64,$0015:
-                at:=vt;
-              varShortInt:
-                ;//at:=varShortInt;
-              else
-                at:=varVariant;
-            end;
-          varSmallint,varWord://i2,u2
-            case vt of
-              varInteger,varSingle,varDouble,varLongWord,varInt64,$0015:
-                at:=vt;
-              varSmallInt,
-              varShortInt,varByte,varWord:
-                ;//at:=varSmallInt;
-              else
-                at:=varVariant;
-            end;
-          varInteger,varLongWord://i4,u4
-            case vt of
-              varSingle,varDouble,varInt64,$0015:
-                at:=vt;
-              varSmallInt,varInteger,
-              varShortInt,varByte,varWord,varLongWord:
-                ;//at:=varInteger;
-              else
-                at:=varVariant;
-            end;
-          varInt64,$0015://i8
-            case vt of
-              varSingle,varDouble:
-                at:=vt;
-              varSmallInt,varInteger,
-              varShortInt,varByte,varWord,varLongWord,varInt64,$0015:
-                ;//at:=varInt64;
-              else
-                at:=varVariant;
-            end;
-          varSingle:
-            case vt of
-              varDouble:
-                at:=vt;
-              varSmallInt,varInteger,varSingle,
-              varShortInt,varByte,varWord,varLongWord:
-                ;//at:=varSingle
-              else
-                at:=varVariant;
-            end;
-          varDouble:
-            case vt of
-              varSmallInt,varInteger,varSingle,varDouble,
-              varShortInt,varByte,varWord,varLongWord:
-                ;//at:=varDouble
-              else
-                at:=varVariant;
-            end;
-          varVariant:
-            ;//Already creating an VarArray of varVariant
-          else
-            if at<>vt then at:=varVariant;
-        end;
+      case at of
+        varEmpty:
+          at:=vt;
+        varShortInt,varByte://i1,u1
+          case vt of
+            varSmallInt,varInteger,varSingle,varDouble,
+            varLongWord,varInt64,$0015:
+              at:=vt;
+            varShortInt:
+              ;//at:=varShortInt;
+            else
+              at:=varVariant;
+          end;
+        varSmallint,varWord://i2,u2
+          case vt of
+            varInteger,varSingle,varDouble,varLongWord,varInt64,$0015:
+              at:=vt;
+            varSmallInt,
+            varShortInt,varByte,varWord:
+              ;//at:=varSmallInt;
+            else
+              at:=varVariant;
+          end;
+        varInteger,varLongWord://i4,u4
+          case vt of
+            varSingle,varDouble,varInt64,$0015:
+              at:=vt;
+            varSmallInt,varInteger,
+            varShortInt,varByte,varWord,varLongWord:
+              ;//at:=varInteger;
+            else
+              at:=varVariant;
+          end;
+        varInt64,$0015://i8
+          case vt of
+            varSingle,varDouble:
+              at:=vt;
+            varSmallInt,varInteger,
+            varShortInt,varByte,varWord,varLongWord,varInt64,$0015:
+              ;//at:=varInt64;
+            else
+              at:=varVariant;
+          end;
+        varSingle:
+          case vt of
+            varDouble:
+              at:=vt;
+            varSmallInt,varInteger,varSingle,
+            varShortInt,varByte,varWord,varLongWord:
+              ;//at:=varSingle
+            else
+              at:=varVariant;
+          end;
+        varDouble:
+          case vt of
+            varSmallInt,varInteger,varSingle,varDouble,
+            varShortInt,varByte,varWord,varLongWord:
+              ;//at:=varDouble
+            else
+              at:=varVariant;
+          end;
+        varVariant:
+          ;//Already creating an VarArray of varVariant
+        else
+          if at<>vt then at:=varVariant;
+      end;
       inc(ai);
      end
     else
