@@ -6,7 +6,7 @@ Copyright 2015-2018 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
-v1.1.8
+v1.1.9
 
 }
 unit jsonDoc;
@@ -1072,7 +1072,7 @@ begin
                 (jsonData[i]=':') or (jsonData[i]='"')
                 {$IFDEF JSONDOC_JSON_LOOSE}
                 or (jsonData[i]='{') or (jsonData[i]='[')
-                or (jsonData[i]='=')
+                or (jsonData[i]='=') or (jsonData[i]=';')
                 {$ENDIF}
                 ) do inc(i);
               k2:=i;
@@ -1276,6 +1276,7 @@ begin
            end;
 
           {$IFDEF JSONDOC_JSON_LOOSE}
+          ';':inc(i);
           else
            begin
             v1:=i;
