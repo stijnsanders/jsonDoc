@@ -1,3 +1,8 @@
+v1.2.0
+  ### ATTENTION!!! breaking change: ###
+- Parse is now a procedure instead of a function, to enable it as the writer for the AsString property while keeping the same number of virtual methods in the IJSONDocument interface.
+- conditional define JSONDOC_P2 to combine JSONDOC_JSON_LOOSE and JSONDOC_JSON_PASCAL_STRINGS
+
 v1.1.8
 - revised parsing arrays of combined numerical types
 

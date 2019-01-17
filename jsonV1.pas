@@ -135,7 +135,8 @@ begin
     m.Free;
   end;
   if (w<>'') and (w[1]='[') then w:='{"":'+w+'}';
-  Result:=JSON.Parse(w);
+  Result:=JSON;
+  Result.Parse(w);
 end;
 
 procedure TfrmJsonViewer.TreeView1Expanding(Sender: TObject;
