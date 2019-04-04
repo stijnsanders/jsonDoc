@@ -22,7 +22,8 @@ type
     procedure EditCopyValue1Execute(Sender: TObject);
   private
     function LoadJSON(const FilePath: string): IJSONDocument;
-    procedure ExpandJSON(Parent: TTreeNode; Data: IJSONDocument); 
+    procedure ExpandJSON(Parent: TTreeNode; Data: IJSONDocument);
+    procedure ExpandString(Parent: TTreeNode; const Data: string);
   protected
     procedure DoShow; override;
   end;
@@ -44,7 +45,7 @@ var
 implementation
 
 uses
-  Clipbrd;
+  Clipbrd, ZLib;
 
 {$R *.dfm}
 
@@ -91,6 +92,24 @@ begin
   NodeClass:=TJSONNode;
 end;
 
+procedure LoadFromCompressed(m:TMemoryStream;const fn:string);
+var
+  f:TFileStream;
+  d:TDecompressionStream;
+begin
+  f:=TFileStream.Create(fn,fmOpenRead or fmShareDenyWrite);
+  try
+    d:=TDecompressionStream.Create(f);
+    try
+      m.LoadFromStream(d);
+    finally
+      d.Free;
+    end;
+  finally
+    f.Free;
+  end;
+end;
+
 function TfrmJsonViewer.LoadJSON(const FilePath: string): IJSONDocument;
 var
   m:TMemoryStream;
@@ -99,7 +118,10 @@ var
 begin
   m:=TMemoryStream.Create;
   try
-    m.LoadFromFile(FilePath);
+    if Copy(FilePath,Length(FilePath)-5,6)='.jsonz' then
+      LoadFromCompressed(m,FilePath)
+    else
+      m.LoadFromFile(FilePath);
     if m.Size=0 then
       w:=''
     else
@@ -195,6 +217,9 @@ begin
              end;
            end
           else
+          if (TVarData(v).VType=varOleStr) or (TVarData(v).VType=varString) then
+            ExpandString(p,VarToStr(v))
+          else
           if (TVarData(v).VType=varUnknown) and (TVarData(v).VUnknown<>nil) and
             (IUnknown(v).QueryInterface(IJSONDocument,x)=S_OK) then
             ExpandJSON(p,x);
@@ -217,6 +242,29 @@ begin
   while e.Next do
     (TreeView1.Items.AddChild(Parent,e.Key) as TJSONNode).
       ShowValue(Data,e.Key,-1,Data[e.Key]);
+end;
+
+procedure TfrmJsonViewer.ExpandString(Parent: TTreeNode;
+  const Data: string);
+var
+  i,j,k,l:integer;
+begin
+  l:=Length(Data);
+  i:=1;
+  k:=0;
+  while (i<=l) do
+   begin
+    while (i<=l) and (Data[i]<' ') do inc(i);
+    if i<=l then
+     begin
+      j:=i;
+      while (j<=l) and (Data[j]>=' ') do inc(j);
+      inc(k);
+      TreeView1.Items.AddChild(Parent,
+        Format('@%d <%d..%d> %s',[k,i-1,j-1,Copy(Data,i,j-i)]));
+      i:=j;
+     end;
+   end;
 end;
 
 { TJSONNode }
@@ -263,7 +311,7 @@ var
   d:IJSONDocument;
   e:IJSONEnumerator;
   s,t:string;
-  l:integer;
+  i,l:integer;
 begin
   Data:=xData;
   Key:=xKey;
@@ -287,7 +335,17 @@ begin
       varNull,varEmpty:
         Text:=Text+' (null)';
       varOleStr,varString:
-        Text:=Text+' (str) '+VarToStr(xValue);
+       begin
+        s:=VarToStr(xValue);
+        l:=Length(s);
+        for i:=1 to l do
+          if s[i]<' ' then
+           begin
+            s[i]:=' ';
+            HasChildren:=true;
+           end;
+        Text:=Text+' (str) '+s;
+       end;
       varBoolean:
         if xValue then
           Text:=Text+' (bool) true'

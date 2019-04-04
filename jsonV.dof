@@ -100,7 +100,7 @@ Conditionals=JSONDOC_P2
 DebugSourceDirs=
 UsePackages=0
 [Parameters]
-RunParams=test/pascal_loose.json
+RunParams=test/ploose_loop.json
 HostApplication=
 Launcher=
 UseLauncher=0
@@ -110,8 +110,8 @@ IncludeVerInfo=1
 AutoIncBuild=0
 MajorVer=1
 MinorVer=2
-Release=0
-Build=570
+Release=1
+Build=590
 Debug=0
 PreRelease=0
 Special=0
@@ -122,7 +122,7 @@ CodePage=1252
 [Version Info Keys]
 CompanyName=
 FileDescription=jsonV
-FileVersion=1.2.0.570
+FileVersion=1.2.1.590
 InternalName=
 LegalCopyright=
 LegalTrademarks=
@@ -130,8 +130,6 @@ OriginalFilename=
 ProductName=jsonDoc
 ProductVersion=1.0.0.0
 Comments=http://yoy.be/jsonV.html
-[Excluded Packages]
-c:\delphi7\Projects\Bpl\VirtualTreesD.bpl=Virtual Treeview design time package
 [HistoryLists\hlConditionals]
 Count=3
 Item0=JSONDOC_P2

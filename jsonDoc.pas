@@ -6,7 +6,7 @@ Copyright 2015-2019 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
-v1.2.0
+v1.2.1
 
 }
 unit jsonDoc;
@@ -1358,46 +1358,50 @@ begin
           while b do
            begin
             v:=Null;
-            if IsArray then
-              if SkipWhiteSpace=']' then
-               begin
-                if da=nil then
-                 begin
-                  if FUseIJSONArray then
+            case SkipWhiteSpace of
+              ']':
+                if IsArray then
+                  if da=nil then
                    begin
-                    aa:=TJSONArray.Create(ai-a1);
-                    k1:=a1;
-                    k2:=0;
-                    while k1<ai do
+                    if FUseIJSONArray then
                      begin
-                      //aa[k2]:=a[k1];VarClear(a[k1]);
-                      VarMove(aa.FData[k2],a[k1]);
-                      inc(k1);
-                      inc(k2);
+                      aa:=TJSONArray.Create(ai-a1);
+                      k1:=a1;
+                      k2:=0;
+                      while k1<ai do
+                       begin
+                        //aa[k2]:=a[k1];VarClear(a[k1]);
+                        VarMove(aa.FData[k2],a[k1]);
+                        inc(k1);
+                        inc(k2);
+                       end;
+                      v:=aa as IJSONArray;
+                     end
+                    else
+                     begin
+                      if not(VarTypeIsValidArrayType(at)) then at:=varVariant;
+                      v:=VarArrayCreate([0,ai-a1-1],at);
+                      k1:=a1;
+                      k2:=0;
+                      while k1<ai do
+                       begin
+                        v[k2]:=a[k1];
+                        VarClear(a[k1]);
+                        inc(k1);
+                        inc(k2);
+                       end;
                      end;
-                    v:=aa as IJSONArray;
+                    ai:=a1;
                    end
-                  else
-                   begin
-                    if not(VarTypeIsValidArrayType(at)) then at:=varVariant;
-                    v:=VarArrayCreate([0,ai-a1-1],at);
-                    k1:=a1;
-                    k2:=0;
-                    while k1<ai do
-                     begin
-                      v[k2]:=a[k1];
-                      VarClear(a[k1]);
-                      inc(k1);
-                      inc(k2);
-                     end;
-                   end;
-                  ai:=a1;
-                 end;
-               end
+                else
+                  b:=false;
+              '}':
+                if IsArray then
+                  raise EJSONDecodeException.Create(
+                    'JSON Unexpected "}" and end of array'+ExVicinity(i));
               else
-                b:=false
-            else
-              b:=SkipWhiteSpace='}';
+                b:=false;
+            end;
             if b then
              begin
               inc(i);
