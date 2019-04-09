@@ -1,3 +1,7 @@
+v1.2.1
+- catch stray "}" before "]" or "]" before "}"
+- jsonV: show multi-line text data as nodes
+
 v1.2.0
   ### ATTENTION!!! breaking change: ###
 - Parse is now a procedure instead of a function, to enable it as the writer for the AsString property while keeping the same number of virtual methods in the IJSONDocument interface.

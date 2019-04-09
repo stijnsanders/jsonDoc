@@ -1360,7 +1360,10 @@ begin
             v:=Null;
             case SkipWhiteSpace of
               ']':
-                if IsArray then
+                if not IsArray then
+                  raise EJSONDecodeException.Create(
+                    'JSON Unexpected "]" inside of document'+ExVicinity(i))
+                else
                   if da=nil then
                    begin
                     if FUseIJSONArray then
@@ -1392,9 +1395,7 @@ begin
                        end;
                      end;
                     ai:=a1;
-                   end
-                else
-                  b:=false;
+                   end;
               '}':
                 if IsArray then
                   raise EJSONDecodeException.Create(
