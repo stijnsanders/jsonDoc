@@ -205,6 +205,7 @@ begin
            end;
           if VarIsArray(v) then
            begin
+            //assert VarArrayDimCount(v)=1
             i:=VarArrayLowBound(v,1);
             j:=0;
             k:=VarArrayHighBound(v,1)+1;
@@ -319,6 +320,7 @@ begin
   vt:=TVarData(xValue).VType;
   if (vt and varArray)<>0 then
    begin
+    //assert VarArrayDimCount(xValue)=1
     l:=VarArrayHighBound(xValue,1)-
       VarArrayLowBound(xValue,1)+1;
     if l=0 then
