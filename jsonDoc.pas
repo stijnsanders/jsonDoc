@@ -134,6 +134,7 @@ type
     function ToString: WideString; stdcall;
     function v0(Index: integer): pointer; stdcall;
     property Item[Idx: integer]: Variant read Get_Item write Set_Item; default;
+    property AsString: WideString read ToString;
   end;
 
 {

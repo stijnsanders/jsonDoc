@@ -1,6 +1,7 @@
 v1.2.1
 - catch stray "}" before "]" or "]" before "}"
 - jsonV: show multi-line text data as nodes
+- IJSONArray property AsString (works better for the debugger)
 
 v1.2.0
   ### ATTENTION!!! breaking change: ###
