@@ -1445,8 +1445,13 @@ begin
            end;
          end;
        end;
+      {$IFDEF JSONDOC_JSON_LOOSE}
+      if stackIndex>0 then raise EJSONDecodeException.Create(
+        'JSON with '+IntToStr(stackIndex+1)+' objects or arrays not closed');
+      {$ELSE}
       if stackIndex<>-1 then raise EJSONDecodeException.Create(
         'JSON with '+IntToStr(stackIndex+1)+' objects or arrays not closed');
+      {$ENDIF}
       if (i<=l) and (SkipWhiteSpace<>#0) then raise EJSONDecodeException.Create(
         'JSON has unexpected data after root document '+ExVicinity(i));
     finally
