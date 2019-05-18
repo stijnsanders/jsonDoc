@@ -158,7 +158,13 @@ begin
   end;
   if (w<>'') and (w[1]='[') then w:='{"":'+w+'}';
   Result:=JSON;
-  Result.Parse(w);
+  try
+    Result.Parse(w);
+  except
+    on e:EJSONDecodeException do
+      MessageBox(Handle,PChar('Error loading "'+FilePath+'":'#13#10+
+        e.Message),'jsonV',MB_OK or MB_ICONERROR);
+  end;
 end;
 
 procedure TfrmJsonViewer.TreeView1Expanding(Sender: TObject;
