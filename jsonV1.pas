@@ -130,8 +130,9 @@ begin
       if (PAnsiChar(m.Memory)[0]=#$FF) and
          (PAnsiChar(m.Memory)[1]=#$FE) then
        begin
+        i:=m.Size-2;
         SetLength(w,i div 2);
-        Move(w[1],PAnsiChar(m.Memory)[2],i);
+        Move(PAnsiChar(m.Memory)[2],w[1],i);
        end
       else
       //UTF-8

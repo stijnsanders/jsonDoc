@@ -100,7 +100,7 @@ Conditionals=JSONDOC_P2
 DebugSourceDirs=
 UsePackages=0
 [Parameters]
-RunParams=test/ploose_open.json
+RunParams=D:\Data\2019\feeder\eater\xmls\0163.json
 HostApplication=
 Launcher=
 UseLauncher=0
@@ -111,7 +111,7 @@ AutoIncBuild=0
 MajorVer=1
 MinorVer=2
 Release=1
-Build=591
+Build=600
 Debug=0
 PreRelease=0
 Special=0
@@ -122,7 +122,7 @@ CodePage=1252
 [Version Info Keys]
 CompanyName=
 FileDescription=jsonV
-FileVersion=1.2.1.591
+FileVersion=1.2.1.600
 InternalName=
 LegalCopyright=
 LegalTrademarks=
