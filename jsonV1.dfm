@@ -18,7 +18,7 @@ object frmJsonViewer: TfrmJsonViewer
     Left = 0
     Top = 0
     Width = 1072
-    Height = 524
+    Height = 488
     Align = alClient
     HideSelection = False
     Indent = 19
@@ -29,6 +29,49 @@ object frmJsonViewer: TfrmJsonViewer
     OnCreateNodeClass = TreeView1CreateNodeClass
     OnDblClick = TreeView1DblClick
     OnExpanding = TreeView1Expanding
+  end
+  object panSearch: TPanel
+    Left = 0
+    Top = 488
+    Width = 1072
+    Height = 36
+    Align = alBottom
+    BevelOuter = bvNone
+    TabOrder = 1
+    Visible = False
+    object Label1: TLabel
+      Left = 8
+      Top = 7
+      Width = 29
+      Height = 16
+      Caption = '&Find:'
+    end
+    object txtFind: TEdit
+      Left = 40
+      Top = 4
+      Width = 249
+      Height = 25
+      TabOrder = 0
+      OnKeyPress = txtFindKeyPress
+    end
+    object btnFindPrev: TButton
+      Left = 292
+      Top = 4
+      Width = 25
+      Height = 25
+      Caption = '<'
+      TabOrder = 1
+      OnClick = actSearchPrevExecute
+    end
+    object btnFindNext: TButton
+      Left = 320
+      Top = 4
+      Width = 25
+      Height = 25
+      Caption = '>'
+      TabOrder = 2
+      OnClick = actSearchNextExecute
+    end
   end
   object ActionList1: TActionList
     Left = 8
@@ -47,6 +90,24 @@ object frmJsonViewer: TfrmJsonViewer
       Hint = 'Copy value|Copies the value only to the clipboard'
       ShortCut = 24643
       OnExecute = EditCopyValue1Execute
+    end
+    object actFind: TAction
+      Category = 'Search'
+      Caption = 'Find...'
+      ShortCut = 16454
+      OnExecute = actFindExecute
+    end
+    object actSearchPrev: TAction
+      Category = 'Search'
+      Caption = 'Search Previous'
+      ShortCut = 8306
+      OnExecute = actSearchPrevExecute
+    end
+    object actSearchNext: TAction
+      Category = 'Search'
+      Caption = 'Search Next'
+      ShortCut = 114
+      OnExecute = actSearchNextExecute
     end
   end
 end

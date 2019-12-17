@@ -4,7 +4,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, ComCtrls, ActnList, jsonDoc, StdActns;
+  Dialogs, ComCtrls, ActnList, jsonDoc, StdActns, StdCtrls, ExtCtrls;
 
 type
   TfrmJsonViewer = class(TForm)
@@ -12,6 +12,14 @@ type
     TreeView1: TTreeView;
     EditCopy1: TEditCopy;
     EditCopyValue1: TAction;
+    panSearch: TPanel;
+    Label1: TLabel;
+    txtFind: TEdit;
+    btnFindPrev: TButton;
+    btnFindNext: TButton;
+    actFind: TAction;
+    actSearchPrev: TAction;
+    actSearchNext: TAction;
     procedure TreeView1CreateNodeClass(Sender: TCustomTreeView;
       var NodeClass: TTreeNodeClass);
     procedure TreeView1Expanding(Sender: TObject; Node: TTreeNode;
@@ -20,10 +28,15 @@ type
     procedure TreeView1Change(Sender: TObject; Node: TTreeNode);
     procedure TreeView1DblClick(Sender: TObject);
     procedure EditCopyValue1Execute(Sender: TObject);
+    procedure actFindExecute(Sender: TObject);
+    procedure txtFindKeyPress(Sender: TObject; var Key: Char);
+    procedure actSearchPrevExecute(Sender: TObject);
+    procedure actSearchNextExecute(Sender: TObject);
   private
     function LoadJSON(const FilePath: string): IJSONDocument;
     procedure ExpandJSON(Parent: TTreeNode; Data: IJSONDocument);
     procedure ExpandString(Parent: TTreeNode; const Data: string);
+    procedure SearchNode(Sender: TObject; Down: boolean);
   protected
     procedure DoShow; override;
   end;
@@ -477,6 +490,93 @@ begin
           Clipboard.AsText:=VarToStr(v);
        end;
    end;
+end;
+
+procedure TfrmJsonViewer.actFindExecute(Sender: TObject);
+begin
+  panSearch.Visible:=true;
+  txtFind.SelectAll;
+  txtFind.SetFocus;
+end;
+
+procedure TfrmJsonViewer.txtFindKeyPress(Sender: TObject; var Key: Char);
+begin
+  if Key=#13 then
+   begin
+    btnFindNext.Click;
+    Key:=#0;
+   end;
+end;
+
+procedure TfrmJsonViewer.actSearchPrevExecute(Sender: TObject);
+begin
+  SearchNode(Sender,false);
+end;
+
+procedure TfrmJsonViewer.actSearchNextExecute(Sender: TObject);
+begin
+  SearchNode(Sender,true);
+end;
+
+procedure TfrmJsonViewer.SearchNode(Sender:TObject;Down:boolean);
+var
+  n,n1:TTreeNode;
+  f:string;
+  b:boolean;
+
+  procedure MoveOne;
+  begin
+    if Down then
+     begin
+      if n<>nil then
+       begin
+        b:=true;
+        TreeView1Expanding(Sender,n,b);
+        n:=n.GetNext;
+       end;
+      if n=nil then
+        n:=TreeView1.Items.GetFirstNode;
+     end
+    else
+     begin
+      while (n<>nil) and (n.getPrevSibling=nil) do n:=n.Parent;
+      if n<>nil then n:=n.getPrevSibling;
+      if n=nil then n:=TreeView1.Items.GetFirstNode;
+      b:=true;
+      while b and (n<>nil) do
+       begin
+        b:=true;
+        TreeView1Expanding(Sender,n,b);
+        if n.Count=0 then
+          b:=false
+        else
+         begin
+          b:=true;
+          n:=n.GetLastChild;
+         end;
+       end;
+     end;
+  end;
+
+begin
+  Screen.Cursor:=crHourGlass;
+  TreeView1.Items.BeginUpdate;
+  try
+    n1:=TreeView1.Selected;
+    n:=n1;
+    MoveOne;
+    f:=LowerCase(txtFind.Text);//TODO: regexp? match full node data?
+    while (n<>n1) and (n<>nil) and (Pos(f,LowerCase(n.Text))=0) do
+     begin
+      if n1=nil then n1:=n;
+      MoveOne;
+     end;
+  finally
+    Screen.Cursor:=crDefault;
+    TreeView1.Items.EndUpdate;
+  end;
+  TreeView1.Selected:=n;
+  TreeView1.SetFocus;
 end;
 
 end.
