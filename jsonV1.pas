@@ -72,6 +72,16 @@ var
   n:TTreeNode;
 begin
   inherited;
+
+  {$if CompilerVersion >= 24}
+  ///TODO: get locale "EN_US"?
+  FormatSettings.DecimalSeparator:='.';
+  FormatSettings.ThousandSeparator:=';';
+  {$else}
+  DecimalSeparator:='.';
+  ThousandSeparator:=';';
+  {$ifend}
+
   TreeView1.Items.BeginUpdate;
   try
     case ParamCount of
