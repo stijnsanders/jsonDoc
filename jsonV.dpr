@@ -9,6 +9,7 @@ uses
 
 begin
   Application.Initialize;
+  Application.Title:='jsonV';
   Application.CreateForm(TfrmJsonViewer, frmJsonViewer);
   Application.Run;     
 end.

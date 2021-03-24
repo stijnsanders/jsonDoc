@@ -90,7 +90,7 @@ begin
        begin
         fn:=ParamStr(1);
         Caption:=fn+' - jsonV';
-        //Application.Title:= //see CreateParams
+        Application.Title:=Caption;
         ExpandJSON(nil,LoadJSON(fn));
        end;
       else
@@ -551,7 +551,6 @@ var
      begin
       while (n<>nil) and (n.getPrevSibling=nil) do n:=n.Parent;
       if n<>nil then n:=n.getPrevSibling;
-      if n=nil then n:=TreeView1.Items.GetFirstNode;
       b:=true;
       while b and (n<>nil) do
        begin
