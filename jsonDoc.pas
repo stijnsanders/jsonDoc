@@ -33,7 +33,7 @@ Define here or in the project settings
     to combine JSONDOC_JSON_LOOSE and JSONDOC_JSON_PASCAL_STRINGS
 
   JSONDOC_STOREINDENTING
-    to make ToString write indentation EOL's and tabs
+    to make AsString write indentation EOL's and tabs
 
   JSONDOC_THREADSAFE
     to make IJSONDocument instances thread-safe
@@ -383,6 +383,7 @@ type
   public
     constructor Create;
     destructor Destroy; override;
+    property AsString: WideString read JSONToString;
   end;
 
 {
@@ -426,6 +427,7 @@ type
     constructor Create(const Data: Variant);
     constructor CreateNoCopy(var Data: Variant);
     destructor Destroy; override;
+    property AsString: WideString read JSONToString;
   end;
 
 {
