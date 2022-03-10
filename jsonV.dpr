@@ -11,5 +11,5 @@ begin
   Application.Initialize;
   Application.Title:='jsonV';
   Application.CreateForm(TfrmJsonViewer, frmJsonViewer);
-  Application.Run;     
+  Application.Run;
 end.

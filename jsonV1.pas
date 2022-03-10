@@ -20,6 +20,7 @@ type
     actFind: TAction;
     actSearchPrev: TAction;
     actSearchNext: TAction;
+    actSortChildren: TAction;
     procedure TreeView1CreateNodeClass(Sender: TCustomTreeView;
       var NodeClass: TTreeNodeClass);
     procedure TreeView1Expanding(Sender: TObject; Node: TTreeNode;
@@ -32,8 +33,14 @@ type
     procedure txtFindKeyPress(Sender: TObject; var Key: Char);
     procedure actSearchPrevExecute(Sender: TObject);
     procedure actSearchNextExecute(Sender: TObject);
+    procedure AppActivate(Sender: TObject);
+    procedure actSortChildrenExecute(Sender: TObject);
   private
-    function LoadJSON(const FilePath: string): IJSONDocument;
+    FFilePath:string;
+    FFileLastMod:int64;
+    FFileMulti:boolean;
+    FFileLastMods:array of int64;
+    function LoadJSON(const FilePath:string;var FileLastMod:int64): IJSONDocument;
     procedure ExpandJSON(Parent: TTreeNode; Data: IJSONDocument);
     procedure ExpandString(Parent: TTreeNode; const Data: string);
     procedure SearchNode(Sender: TObject; Down: boolean);
@@ -66,7 +73,7 @@ uses
 
 procedure TfrmJsonViewer.DoShow;
 var
-  i:integer;
+  i,l:integer;
   fn:string;
   p:TJSONNode;
   n:TTreeNode;
@@ -82,6 +89,12 @@ begin
   ThousandSeparator:=';';
   {$ifend}
 
+  FFilePath:='';
+  FFileLastMod:=0;
+  FFileMulti:=false;
+
+  Application.OnActivate:=AppActivate;
+
   TreeView1.Items.BeginUpdate;
   try
     case ParamCount of
@@ -91,16 +104,22 @@ begin
         fn:=ParamStr(1);
         Caption:=fn+' - jsonV';
         Application.Title:=Caption;
-        ExpandJSON(nil,LoadJSON(fn));
+        FFilePath:=fn;
+        ExpandJSON(nil,LoadJSON(fn,FFileLastMod));
        end;
       else
-        for i:=1 to ParamCount do
+       begin
+        FFileMulti:=true;
+        l:=ParamCount;
+        SetLength(FFileLastMods,l);
+        for i:=1 to l do
          begin
           fn:=ParamStr(i);
           p:=TreeView1.Items.Add(nil,fn) as TJSONNode;
-          p.Data:=LoadJSON(fn);
+          p.Data:=LoadJSON(fn,FFileLastMods[i-1]);
           p.HasChildren:=true;
          end;
+       end;
     end;
   finally
     TreeView1.Items.EndUpdate;
@@ -115,13 +134,37 @@ begin
   NodeClass:=TJSONNode;
 end;
 
-procedure LoadFromCompressed(m:TMemoryStream;const fn:string);
+procedure LoadFromFile(m:TMemoryStream;const fn:string;var FileModTimeStamp:int64);
 var
   f:TFileStream;
-  d:TDecompressionStream;
+  fi:TByHandleFileInformation;
 begin
   f:=TFileStream.Create(fn,fmOpenRead or fmShareDenyWrite);
   try
+    if GetFileInformationByHandle(f.Handle,fi) then
+      FileModTimeStamp:=(fi.ftLastWriteTime.dwHighDateTime shl 32) or
+        fi.ftLastWriteTime.dwLowDateTime
+    else
+      FileModTimeStamp:=0;
+    m.LoadFromStream(f);
+  finally
+    f.Free;
+  end;
+end;
+
+procedure LoadFromCompressed(m:TMemoryStream;const fn:string;var FileModTimeStamp:int64);
+var
+  f:TFileStream;
+  d:TDecompressionStream;
+  fi:TByHandleFileInformation;
+begin
+  f:=TFileStream.Create(fn,fmOpenRead or fmShareDenyWrite);
+  try
+    if GetFileInformationByHandle(f.Handle,fi) then
+      FileModTimeStamp:=(fi.ftLastWriteTime.dwHighDateTime shl 32) or
+        fi.ftLastWriteTime.dwLowDateTime
+    else
+      FileModTimeStamp:=0;
     d:=TDecompressionStream.Create(f);
     try
       m.LoadFromStream(d);
@@ -133,7 +176,8 @@ begin
   end;
 end;
 
-function TfrmJsonViewer.LoadJSON(const FilePath: string): IJSONDocument;
+function TfrmJsonViewer.LoadJSON(const FilePath:string;
+  var FileLastMod:int64):IJSONDocument;
 var
   m:TMemoryStream;
   i:integer;
@@ -142,9 +186,9 @@ begin
   m:=TMemoryStream.Create;
   try
     if Copy(FilePath,Length(FilePath)-5,6)='.jsonz' then
-      LoadFromCompressed(m,FilePath)
+      LoadFromCompressed(m,FilePath,FileLastMod)
     else
-      m.LoadFromFile(FilePath);
+      LoadFromFile(m,FilePath,FileLastMod);
     if m.Size=0 then
       w:=''
     else
@@ -296,6 +340,71 @@ begin
       i:=j;
      end;
    end;
+end;
+
+function GetFileLastMod(const fn:string):int64;
+var
+  f:TFileStream;
+  fi:TByHandleFileInformation;
+begin
+  Result:=0;
+  f:=TFileStream.Create(fn,fmOpenRead or fmShareDenyNone);
+  try
+    if GetFileInformationByHandle(f.Handle,fi) then
+      Result:=(fi.ftLastWriteTime.dwHighDateTime shl 32) or
+        fi.ftLastWriteTime.dwLowDateTime;
+  finally
+    f.Free;
+  end;
+end;
+
+procedure TfrmJsonViewer.AppActivate(Sender: TObject);
+var
+  n:TTreeNode;
+  i:integer;
+begin
+  //TODO: store/re-apply expanded nodes...
+  if FFileMulti then
+   begin
+    TreeView1.Items.BeginUpdate;
+    try
+      n:=TreeView1.Items.GetFirstNode;
+      i:=0;
+      while n<>nil do
+       begin
+        try
+          //assert i<Length(FFileLastMods)
+          if GetFileLastMod(n.Text)<>FFileLastMods[i] then
+           begin
+            n.DeleteChildren;
+            (n as TJSONNode).Data:=LoadJSON(n.Text,FFileLastMods[i]);
+            n.HasChildren:=true;
+           end;
+        except
+          //silent;
+        end;
+        n:=n.getNextSibling;
+        inc(i);
+       end;
+    finally
+      TreeView1.Items.EndUpdate;
+    end;
+   end
+  else
+    try
+      if (FFilePath<>'') and (GetFileLastMod(FFilePath)<>FFileLastMod) then
+       begin
+        TreeView1.Items.BeginUpdate;
+        try
+          TreeView1.Items.Clear;
+          ExpandJSON(nil,LoadJSON(FFilePath,FFileLastMod));
+        finally
+          TreeView1.Items.EndUpdate;
+        end;
+       end;
+    except
+      //silent?
+    end;
 end;
 
 { TJSONNode }
@@ -586,6 +695,12 @@ begin
   end;
   TreeView1.Selected:=n;
   TreeView1.SetFocus;
+end;
+
+procedure TfrmJsonViewer.actSortChildrenExecute(Sender: TObject);
+begin
+  if TreeView1.Selected<>nil then
+    TreeView1.Selected.AlphaSort(false);
 end;
 
 end.

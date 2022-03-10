@@ -50,7 +50,7 @@ object frmJsonViewer: TfrmJsonViewer
       Left = 40
       Top = 4
       Width = 249
-      Height = 25
+      Height = 24
       TabOrder = 0
       OnKeyPress = txtFindKeyPress
     end
@@ -108,6 +108,12 @@ object frmJsonViewer: TfrmJsonViewer
       Caption = 'Search Next'
       ShortCut = 114
       OnExecute = actSearchNextExecute
+    end
+    object actSortChildren: TAction
+      Category = 'Search'
+      Caption = 'Sort Children'
+      ShortCut = 16466
+      OnExecute = actSortChildrenExecute
     end
   end
 end
