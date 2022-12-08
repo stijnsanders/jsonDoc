@@ -2,11 +2,11 @@
 
 jsonDoc.pas
 
-Copyright 2015-2019 Stijn Sanders
+Copyright 2015-2022 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
-v1.2.1
+v1.2.2
 
 }
 unit jsonDoc;
@@ -2752,8 +2752,7 @@ begin
           inc(i);
          end;
    end;
-  //any left open?
-  if si=0 then Result:=d else Result:=s[si-1];
+  if si=0 then Result:=d else Result:=s[0];
 end;
 
 function JSON(const x: Variant): IJSONDocument; overload;
