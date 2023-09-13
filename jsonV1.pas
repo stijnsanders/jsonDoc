@@ -180,7 +180,7 @@ function TfrmJsonViewer.LoadJSON(const FilePath:string;
   var FileLastMod:int64):IJSONDocument;
 var
   m:TMemoryStream;
-  i:integer;
+  i,l:integer;
   w:WideString;
 begin
   m:=TMemoryStream.Create;
@@ -189,7 +189,8 @@ begin
       LoadFromCompressed(m,FilePath,FileLastMod)
     else
       LoadFromFile(m,FilePath,FileLastMod);
-    if m.Size=0 then
+    l:=m.Size;
+    if l=0 then
       w:=''
     else
      begin
@@ -197,7 +198,7 @@ begin
       if (PAnsiChar(m.Memory)[0]=#$FF) and
          (PAnsiChar(m.Memory)[1]=#$FE) then
        begin
-        i:=m.Size-2;
+        i:=l-2;
         SetLength(w,i div 2);
         Move(PAnsiChar(m.Memory)[2],w[1],i);
        end
@@ -207,7 +208,7 @@ begin
          (PAnsiChar(m.Memory)[1]=#$BB) and
          (PAnsiChar(m.Memory)[2]=#$BF) then
        begin
-        m.Position:=m.Size;
+        m.Position:=l;
         i:=0;
         m.Write(i,1);
         w:=UTF8Decode(PAnsiChar(@PAnsiChar(m.Memory)[3]));
@@ -215,10 +216,11 @@ begin
       //ANSI
       else
        begin
-        m.Position:=m.Size;
+        m.Position:=l;
         i:=0;
         m.Write(i,1);
-        w:=PAnsiChar(m.Memory);
+        w:=UTF8Decode(PAnsiChar(m.Memory));
+        if w='' then w:=PAnsiChar(m.Memory);
        end;
      end;
   finally

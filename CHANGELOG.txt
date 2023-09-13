@@ -1,6 +1,7 @@
 v1.2.2
 - jsonV: detect file change on app activate
 - jsonV: Ctrl+R to alpha-sort children
+- jsonV: support UTF-8 without byte-order-mark
 - jsonSet.pas
 
 v1.2.1
