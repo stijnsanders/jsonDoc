@@ -1,3 +1,6 @@
+v1.2.3
+- JSONEnumSorted: IJSONEnumerableSorted using internal keys sort order
+
 v1.2.2
 - jsonV: detect file change on app activate
 - jsonV: Ctrl+R to alpha-sort children

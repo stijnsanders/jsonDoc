@@ -4,7 +4,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, ComCtrls, ActnList, jsonDoc, StdActns, StdCtrls, ExtCtrls;
+  Dialogs, ComCtrls, ActnList, jsonDoc, StdActns, StdCtrls, ExtCtrls, Menus;
 
 type
   TfrmJsonViewer = class(TForm)
@@ -213,7 +213,7 @@ begin
         m.Write(i,1);
         w:=UTF8Decode(PAnsiChar(@PAnsiChar(m.Memory)[3]));
        end
-      //ANSI
+      //UTF-8 without BOM, or ANSI
       else
        begin
         m.Position:=l;
