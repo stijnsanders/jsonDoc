@@ -92,12 +92,12 @@ Variants can have a VarType combined with varArray, jsonDoc tries to support tha
     var
       d:IJSONDocument;
     begin
-      d:=JSON(['x':VarArrayOf([1,2,3])]);
+      d:=JSON(['x',VarArrayOf([1,2,3])]);
       //d.ToString='{"x",[1,2,3]}'
       d:=JSON(['x',VarArrayOf([JSON(['a',1],JSON(['b',1]))])]);
-      //d.ToString='{'x',[{"a":1},{"b":2}]}'
+      //d.ToString='{"x",[{"a":1},{"b":2}]}'
       JSON(d['x'][1])['c']:=3;
-      //d.ToString='{'x',[{"a":1},{"b":2,"c":3}]}'
+      //d.ToString='{"x",[{"a":1},{"b":2,"c":3}]}'
 
 Function `JSONEnum` also supports variant arrays:
 

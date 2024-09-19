@@ -50,7 +50,7 @@ Clear the values of the `IJSONDocument`, but keep the list of keys.
 
     procedure Clear;
 
-When processing a sequence of JSON documents with a similar set of keys (and keys of embedded documents), performance can be gained by avoiding the de- and re-allocation of memory to store the keys (and the Variant record for their values). (See also `IJSONDocArrayBuilder` below).
+When processing a sequence of JSON documents with a similar set of keys (and keys of embedded documents), performance can be gained by avoiding the de- and re-allocation of memory to store the keys (and the Variant record for their values). (See also `IJSONDocArray` below).
 
 Retrieve a value by key. This is the default property, so you can access the keys of a `IJSONDocument` by index notation (e.g.: `d['id']`).
 
@@ -86,12 +86,12 @@ Returns the key or value of the current item in the set.
 
 ### JSONDocArray
 
-Use an `IJSONDocArrayBuilder` instance to store a set of similar JSON documents. JSON is converted to and from strings internally to save on memory usage. Use `LoadItem` with a single `IJSONDocument` instance to re-use keys and save on memory allocation. Pre-load a parent `IJSONDocument` with an `IJSONDocArrayBuilder` instance to postpone some of the parsing of the children documents.
+Use an `IJSONDocArray` instance to store a set of similar JSON documents. JSON is converted to and from strings internally to save on memory usage. Use `LoadItem` with a single `IJSONDocument` instance to re-use keys and save on memory allocation. Pre-load a parent `IJSONDocument` with an `IJSONDocArray` instance to postpone some of the parsing of the children documents.
 
-    function JSONDocArray: IJSONDocArrayBuilder; overload;
-    function JSONDocArray(const Items:array of IJSONDocument): IJSONDocArrayBuilder; overload;
+    function JSONDocArray: IJSONDocArray; overload;
+    function JSONDocArray(const Items:array of IJSONDocument): IJSONDocArray; overload;
 
-### IJSONDocArrayBuilder
+### IJSONDocArray
 
 Append a document to the array.
 
@@ -106,7 +106,7 @@ Retrieve the number of documents in the array.
 
     function Count: integer; stdcall;
 
-Convert the data in the `IJSONDocArrayBuilder` instance into a JSON string.
+Convert the data in the `IJSONDocArray` instance into a JSON string.
 
     function ToString: WideString; stdcall;
 
