@@ -239,7 +239,15 @@ To access the internal sorted list of keys, use the `JSONEnumSorted` function. I
 
 ## Loading/saving JSON from/to file
 
-...
+_jsonDoc_ itself doesn't have specific functions to load JSON data from files, or store JSON data into files. You're free to use the many options available to you. For example, the unit `System.IOUtils` declares class procedures `TFile.ReadAllText` and `TFile.WriteAllText`. For maximal interoperability, it's advised to use UTF8 to store JSON files.
+
+    var
+      d:IJSONDocument;
+    begin
+      d:=JSON(TFile.ReadAllText('demo1.json'));
+      d['x']:=true;
+      TFile.WriteAllText('demo2.json',d.AsString,TEncoding.UTF8);
+    end;
 
 ## UseIJSONArray, UseIJSONDocArray
 
