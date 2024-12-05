@@ -21,6 +21,7 @@ type
     actSearchPrev: TAction;
     actSearchNext: TAction;
     actSortChildren: TAction;
+    lblSearchResult: TLabel;
     procedure TreeView1CreateNodeClass(Sender: TCustomTreeView;
       var NodeClass: TTreeNodeClass);
     procedure TreeView1Expanding(Sender: TObject; Node: TTreeNode;
@@ -46,6 +47,7 @@ type
     procedure SearchNode(Sender: TObject; Down: boolean);
   protected
     procedure DoShow; override;
+    procedure CreateParams(var Params: TCreateParams); override;
   end;
 
   TJSONNode=class(TTreeNode)
@@ -94,6 +96,7 @@ begin
   FFileMulti:=false;
 
   Application.OnActivate:=AppActivate;
+  ShowWindow(Application.Handle,SW_HIDE);
 
   TreeView1.Items.BeginUpdate;
   try
@@ -409,6 +412,12 @@ begin
     end;
 end;
 
+procedure TfrmJsonViewer.CreateParams(var Params: TCreateParams);
+begin
+  inherited;
+  Params.WndParent:=GetDesktopWindow;
+end;
+
 { TJSONNode }
 
 procedure TJSONNode.AfterConstruction;
@@ -644,6 +653,7 @@ var
   n,n1:TTreeNode;
   f:string;
   b:boolean;
+  c:integer;
 
   procedure MoveOne;
   begin
@@ -676,12 +686,14 @@ var
          end;
        end;
      end;
+    inc(c);
   end;
 
 begin
   Screen.Cursor:=crHourGlass;
   TreeView1.Items.BeginUpdate;
   try
+    c:=0;
     n1:=TreeView1.Selected;
     n:=n1;
     MoveOne;
@@ -695,7 +707,16 @@ begin
     Screen.Cursor:=crDefault;
     TreeView1.Items.EndUpdate;
   end;
-  TreeView1.Selected:=n;
+  if n=nil then
+    lblSearchResult.Caption:='none found'
+  else
+   begin
+    if Down then
+      lblSearchResult.Caption:=IntToStr(c)+' nodes forward'
+    else
+      lblSearchResult.Caption:=IntToStr(c)+' nodes backward';
+    TreeView1.Selected:=n;
+   end;
   TreeView1.SetFocus;
 end;
 

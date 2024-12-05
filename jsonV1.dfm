@@ -46,6 +46,13 @@ object frmJsonViewer: TfrmJsonViewer
       Height = 16
       Caption = '&Find:'
     end
+    object lblSearchResult: TLabel
+      Left = 352
+      Top = 8
+      Width = 12
+      Height = 16
+      Caption = '...'
+    end
     object txtFind: TEdit
       Left = 40
       Top = 4
