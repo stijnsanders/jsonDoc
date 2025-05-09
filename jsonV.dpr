@@ -3,7 +3,8 @@ program jsonV;
 uses
   Forms,
   jsonV1 in 'jsonV1.pas' {frmJsonViewer},
-  jsonDoc in 'jsonDoc.pas';
+  jsonDoc in 'jsonDoc.pas',
+  jsonV2 in 'jsonV2.pas' {frmJsonTable};
 
 {$R *.res}
 

@@ -1,18 +1,16 @@
 object frmJsonViewer: TfrmJsonViewer
   Left = 192
   Top = 124
-  Width = 1088
-  Height = 563
   Caption = 'jsonV'
+  ClientHeight = 524
+  ClientWidth = 1072
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
   Font.Height = -13
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = False
   Position = poDefault
-  PixelsPerInch = 96
   TextHeight = 16
   object TreeView1: TTreeView
     Left = 0
@@ -83,20 +81,20 @@ object frmJsonViewer: TfrmJsonViewer
   object ActionList1: TActionList
     Left = 8
     Top = 8
-    object EditCopy1: TEditCopy
+    object actEditCopy: TEditCopy
       Category = 'Edit'
       Caption = '&Copy'
       Hint = 'Copy|Copies the selection and puts it on the Clipboard'
       ImageIndex = 1
       ShortCut = 16451
-      OnExecute = EditCopy1Execute
+      OnExecute = actEditCopyExecute
     end
-    object EditCopyValue1: TAction
+    object actEditCopyValue: TAction
       Category = 'Edit'
       Caption = 'Copy &value'
       Hint = 'Copy value|Copies the value only to the clipboard'
       ShortCut = 24643
-      OnExecute = EditCopyValue1Execute
+      OnExecute = actEditCopyValueExecute
     end
     object actFind: TAction
       Category = 'Search'
@@ -121,6 +119,11 @@ object frmJsonViewer: TfrmJsonViewer
       Caption = 'Sort Children'
       ShortCut = 16466
       OnExecute = actSortChildrenExecute
+    end
+    object actViewTabular: TAction
+      Caption = 'actViewTabular'
+      ShortCut = 16468
+      OnExecute = actViewTabularExecute
     end
   end
 end

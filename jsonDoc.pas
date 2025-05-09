@@ -2,11 +2,11 @@
 
 jsonDoc.pas
 
-Copyright 2015-2023 Stijn Sanders
+Copyright 2015-2024 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
-v1.2.3
+v1.2.4
 
 }
 unit jsonDoc;
@@ -40,6 +40,9 @@ Define here or in the project settings
 
   JSONDOC_DEFAULT_USE_IJSONARRAY
     to set JSON_UseIJSONArray to true by default
+
+  JSONDOC_DEFAULT_USE_IJSONDOCARRAY
+    to set JSON_UseIJSONDocArray to true by default
 
 }
 
@@ -231,6 +234,15 @@ function ja(const Item:Variant): IJSONArray; overload;
 function JSONDocArray: IJSONDocArray; overload;
 function JSONDocArray(const Items:array of IJSONDocument): IJSONDocArray; overload;
 
+{
+  isJSON, isJSONArray, isJSONDocArray
+  check whether a variant value holds an instance of IJSONDocument,
+  IJSONArray, IJSONDocArray
+}
+function isJSON(const v: Variant; var d: IJSONDocument): boolean; //inline;
+function isJSONArray(const v: Variant; var a: IJSONArray): boolean; //inline;
+function isJSONDocArray(const v: Variant; var a: IJSONDocArray): boolean; //inline;
+
 
 {
   JSON_UseIJSONArray
@@ -240,6 +252,23 @@ function JSONDocArray(const Items:array of IJSONDocument): IJSONDocArray; overlo
 }
 var
   JSON_UseIJSONArray: boolean;
+
+{
+  JSON_UseIJSONDocArray
+  switch JSON.Parse so it will create IJSONDOCArray instances to hold arrays of
+  documents instead of VarArrayCreate, when a sequence of "[" and "{" is
+  detected, default false
+  see also TJSONDocument.UseIJSONDocArray property
+}
+var
+  JSON_UseIJSONDocArray: boolean;
+
+{
+  JSONa function: JSON document factory with UseIJSONDocArray enabled
+  create a new blank document, and sets UseIJSONDocArray for cals to Parse,
+  creates an IJSONDocArray instance when a sequence of "[" and "{" is detected.
+}
+function JSONa: IJSONDocument;
 
 {
   TJSONImplBaseObj
@@ -293,7 +322,7 @@ type
     FGotIndex,FGotSorted:integer;
     FGotMatch:boolean;
     {$ENDIF}
-    FUseIJSONArray:boolean;
+    FUseIJSONArray,FUseIJSONDocArray:boolean;
     function GetKeyIndex(const Key: WideString;
       var GotIndex: integer; var GotSorted: integer): boolean;
   protected
@@ -314,6 +343,7 @@ type
       read Get_Item write Set_Item; default;
     property AsString: WideString read JSONToString write Parse;
     property UseIJSONArray:boolean read FUseIJSONArray write FUseIJSONArray;
+    property UseIJSONDocArray:boolean read FUseIJSONDocArray write FUseIJSONDocArray;
     function NewEnumeratorSorted: IJSONEnumerator; stdcall;
     function IJSONEnumerableSorted.NewEnumerator = NewEnumeratorSorted;
   end;
@@ -566,6 +596,7 @@ begin
   FGotMatch:=false;
   {$ENDIF}
   FUseIJSONArray:=JSON_UseIJSONArray;
+  FUseIJSONDocArray:=JSON_UseIJSONDocArray
 end;
 
 destructor TJSONDocument.Destroy;
@@ -1047,19 +1078,18 @@ var
       d[GetStringValue(k1,k2)]:=v
   end;
 var
-  firstItem,b:boolean;
+  firstItem,b,daSet:boolean;
   stack:array of record
     k1,k2:integer;
     d:IJSONDocument;
   end;
-  stackIndex,stackSize:integer;
+  stackIndex,stackSize,da0,da1:integer;
   ods:char;
   key:WideString;
   d1:IJSONDocument;
   dr:IJSONDocWithReUse;
   da:IJSONDocArray;
   aa:TJSONArray;
-  da0,da1:integer;
   v:Variant;
   v64:int64;
   procedure CheckValue;
@@ -1084,6 +1114,7 @@ begin
     a1:=0;
     al:=0;
     da:=nil;
+    daSet:=false;
     da0:=0;
     da1:=0;
     IsArray:=false;
@@ -1152,19 +1183,27 @@ begin
               //an object starts
               if da=nil then
                 if IsArray then
-                 begin
-                  if ai=al then
+                  if FUseIJSONDocArray and b and (da=nil) and (ai=a1) then
                    begin
-                    inc(al,arrGrowStep);//not too much, not too little (?)
-                    SetLength(a,al);
-                   end;
-                  v:=JSON;
-                  a[ai]:=v;
-                  //detect same type elements array
-                  if at=varEmpty then at:=varUnknown else
-                    if at<>varUnknown then at:=varVariant;
-                  inc(ai);
-                 end
+                    da:=TJSONDocArray.Create;
+                    da0:=stackIndex;
+                    da1:=i;
+                    daSet:=true;
+                   end
+                  else
+                   begin
+                    if ai=al then
+                     begin
+                      inc(al,arrGrowStep);//not too much, not too little (?)
+                      SetLength(a,al);
+                     end;
+                    v:=JSON;
+                    a[ai]:=v;
+                    //detect same type elements array
+                    if at=varEmpty then at:=varUnknown else
+                      if at<>varUnknown then at:=varVariant;
+                    inc(ai);
+                   end
                 else
                  begin
                   key:=GetStringValue(k1,k2);
@@ -1186,13 +1225,13 @@ begin
                    end;
                  end
               else
-                if da0=stackIndex then da1:=i;
+                if da0=stackIndex then da1:=i;//see da.AddJSON below
               IsArray:=false;
              end
             else
              begin
               //an array starts
-              if da=nil then
+              if not(b) and (da=nil) then
                 if d.QueryInterface(IID_IJSONDocWithReUse,dr)=S_OK then
                  begin
                   key:=GetStringValue(k1,k2);
@@ -1204,6 +1243,7 @@ begin
                    begin
                     da0:=stackIndex+1;
                     da1:=0;//see first '{' above
+                    daSet:=false;
                    end;
                  end;
               IsArray:=true;
@@ -1483,7 +1523,10 @@ begin
                     da.AddJSON(Copy(jsonData,da1,i-da1))
                   else
                     if stackIndex=da0-1 then
+                     begin
+                      if daSet then v:=da;
                       da:=nil;//done
+                     end;
                end;
               //set array
               if (da=nil) and (TVarData(v).VType<>varNull) then SetValue(v);
@@ -3050,11 +3093,54 @@ begin
   for i:=0 to Length(Items)-1 do Result.Add(Items[i]);
 end;
 
+function isJSON(const v: Variant; var d: IJSONDocument): boolean;
+begin
+  Result:=
+    (TVarData(v).VType=varUnknown) and
+    (TVarData(v).VUnknown<>nil) and
+    (IUnknown(v).QueryInterface(IID_IJSONDocument,d)=S_OK);
+end;
+
+function isJSONArray(const v: Variant; var a: IJSONArray): boolean;
+begin
+  Result:=
+    (TVarData(v).VType=varUnknown) and
+    (TVarData(v).VUnknown<>nil) and
+    (IUnknown(v).QueryInterface(IID_IJSONArray,a)=S_OK);
+end;
+
+function isJSONDocArray(const v: Variant; var a: IJSONDocArray): boolean;
+begin
+  Result:=
+    (TVarData(v).VType=varUnknown) and
+    (TVarData(v).VUnknown<>nil) and
+    (IUnknown(v).QueryInterface(IID_IJSONDocArray,a)=S_OK);
+end;
+
+function JSONa: IJSONDocument;
+var
+  jd:TJSONDocument;
+begin
+  jd:=TJSONDocument.Create;
+  jd.UseIJSONDocArray:=true;
+  Result:=jd as IJSONDocument;
+end;
+
 initialization
+
   {$IFDEF JSONDOC_DEFAULT_USE_IJSONARRAY}
   JSON_UseIJSONArray:=true;  //default, see TJSONDocument.Create
   {$ELSE}
   JSON_UseIJSONArray:=false; //default, see TJSONDocument.Create
   {$ENDIF}
+
+  {$IFDEF JSONDOC_DEFAULT_USE_IJSONDOCARRAY}
+  JSON_UseIJSONDocArray:=true;  //default, see TJSONDocument.Parse
+  {$ELSE}
+  JSON_UseIJSONDocArray:=false; //default, see TJSONDocument.Parse
+  {$ENDIF}
+
 end.
+
+
 

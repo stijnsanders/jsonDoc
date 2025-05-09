@@ -1,3 +1,8 @@
+v1.2.4
+- UseIJSONDocArray to enable automatic use of IJSONDocArray instances on a "[{" sequence
+- isJSON, isJSONArray, isJSONDocArray functions
+- jsonV: Ctrl+T on array of documents to show tabular view
+
 v1.2.3
 - JSONEnumSorted: IJSONEnumerableSorted using internal keys sort order
 

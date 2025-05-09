@@ -10,8 +10,8 @@ type
   TfrmJsonViewer = class(TForm)
     ActionList1: TActionList;
     TreeView1: TTreeView;
-    EditCopy1: TEditCopy;
-    EditCopyValue1: TAction;
+    actEditCopy: TEditCopy;
+    actEditCopyValue: TAction;
     panSearch: TPanel;
     Label1: TLabel;
     txtFind: TEdit;
@@ -22,20 +22,22 @@ type
     actSearchNext: TAction;
     actSortChildren: TAction;
     lblSearchResult: TLabel;
+    actViewTabular: TAction;
     procedure TreeView1CreateNodeClass(Sender: TCustomTreeView;
       var NodeClass: TTreeNodeClass);
     procedure TreeView1Expanding(Sender: TObject; Node: TTreeNode;
       var AllowExpansion: Boolean);
-    procedure EditCopy1Execute(Sender: TObject);
+    procedure actEditCopyExecute(Sender: TObject);
     procedure TreeView1Change(Sender: TObject; Node: TTreeNode);
     procedure TreeView1DblClick(Sender: TObject);
-    procedure EditCopyValue1Execute(Sender: TObject);
+    procedure actEditCopyValueExecute(Sender: TObject);
     procedure actFindExecute(Sender: TObject);
     procedure txtFindKeyPress(Sender: TObject; var Key: Char);
     procedure actSearchPrevExecute(Sender: TObject);
     procedure actSearchNextExecute(Sender: TObject);
     procedure AppActivate(Sender: TObject);
     procedure actSortChildrenExecute(Sender: TObject);
+    procedure actViewTabularExecute(Sender: TObject);
   private
     FFilePath:string;
     FFileLastMod:int64;
@@ -67,9 +69,16 @@ var
 implementation
 
 uses
-  Clipbrd, ZLib;
+  Clipbrd, ZLib, jsonV2;
 
 {$R *.dfm}
+
+{$IF not Declared(UTF8ToWideString)}
+function UTF8ToWideString(const s: UTF8String): WideString;
+begin
+  Result:=UTF8Decode(s);
+end;
+{$IFEND}
 
 { TfrmJsonViewer }
 
@@ -96,7 +105,6 @@ begin
   FFileMulti:=false;
 
   Application.OnActivate:=AppActivate;
-  ShowWindow(Application.Handle,SW_HIDE);
 
   TreeView1.Items.BeginUpdate;
   try
@@ -129,6 +137,7 @@ begin
   end;
   n:=TreeView1.Items.GetFirstNode;
   if (n<>nil) and (n.getNextSibling=nil) then n.Expand(false);
+  ShowWindow(Application.Handle,SW_HIDE);
 end;
 
 procedure TfrmJsonViewer.TreeView1CreateNodeClass(Sender: TCustomTreeView;
@@ -214,7 +223,7 @@ begin
         m.Position:=l;
         i:=0;
         m.Write(i,1);
-        w:=UTF8Decode(PAnsiChar(@PAnsiChar(m.Memory)[3]));
+        w:=UTF8ToWideString(PAnsiChar(@PAnsiChar(m.Memory)[3]));
        end
       //UTF-8 without BOM, or ANSI
       else
@@ -222,8 +231,8 @@ begin
         m.Position:=l;
         i:=0;
         m.Write(i,1);
-        w:=UTF8Decode(PAnsiChar(m.Memory));
-        if w='' then w:=PAnsiChar(m.Memory);
+        w:=UTF8ToWideString(PAnsiChar(m.Memory));
+        if w='' then w:=WideString(PAnsiChar(m.Memory));
        end;
      end;
   finally
@@ -555,13 +564,13 @@ begin
     end;
 end;
 
-procedure TfrmJsonViewer.EditCopy1Execute(Sender: TObject);
+procedure TfrmJsonViewer.actEditCopyExecute(Sender: TObject);
 begin
   if TreeView1.Selected<>nil then
     Clipboard.AsText:=TreeView1.Selected.Text;
 end;
 
-procedure TfrmJsonViewer.EditCopyValue1Execute(Sender: TObject);
+procedure TfrmJsonViewer.actEditCopyValueExecute(Sender: TObject);
 var
   p:TJSONNode;
   v:Variant;
@@ -599,6 +608,7 @@ end;
 procedure TfrmJsonViewer.TreeView1DblClick(Sender: TObject);
 var
   v:Variant;
+  vt:TVarType;
   p:TJSONNode;
   d:IJSONDocument;
 begin
@@ -612,10 +622,11 @@ begin
        begin
         v:=p.Data[p.Key];
         if p.Index<>-1 then v:=v[VarArrayLowBound(v,1)+p.Index];
-        //case TVarData(v).VType of
-        if (TVarData(v).VType=varUnknown) and (TVarData(v).VUnknown<>nil) and
+        vt:=TVarData(v).VType;
+        if (vt=varUnknown) and (TVarData(v).VUnknown<>nil) and
           (IUnknown(v).QueryInterface(IJSONDocument,d)=S_OK) then
           Clipboard.AsText:=d.ToString
+        //else if vt=varArray or varUnknown then actViewTabular.Execute
         else
           Clipboard.AsText:=VarToStr(v);
        end;
@@ -724,6 +735,42 @@ procedure TfrmJsonViewer.actSortChildrenExecute(Sender: TObject);
 begin
   if TreeView1.Selected<>nil then
     TreeView1.Selected.AlphaSort(false);
+end;
+
+procedure TfrmJsonViewer.actViewTabularExecute(Sender: TObject);
+var
+  p:TJSONNode;
+  v:Variant;
+  f:TfrmJsonTable;
+  s:string;
+begin
+  p:=TreeView1.Selected as TJSONNode;
+  v:=p.Data[p.Key];
+  if TVarData(v).VType=varArray or varUnknown then
+   begin
+    Screen.Cursor:=crHourGlass;
+    try
+      f:=TfrmJsonTable.Create(Self);
+
+      s:='.'+p.Key;
+      p:=p.Parent as TJSONNode;
+      while p<>nil do
+       begin
+        if p.Index=-1 then
+          s:='.'+p.Key+s
+        else
+          s:='['+IntToStr(p.Index)+']'+s;
+        p:=p.Parent as TJSONNode;
+       end;
+      f.Caption:=Copy(s,2,Length(s)-1)+' - '+FFilePath+' - jsonV';
+
+      f.BuildTable(Self,TreeView1.Selected,v);
+
+      f.Show;
+    finally
+      Screen.Cursor:=crDefault;
+    end;
+   end;
 end;
 
 end.
