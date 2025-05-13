@@ -1,18 +1,16 @@
 object frmJsonTable: TfrmJsonTable
   Left = 192
   Top = 124
-  Width = 1088
-  Height = 563
   Caption = 'jsonV Table View'
+  ClientHeight = 524
+  ClientWidth = 1072
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
   Font.Height = -13
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = True
   Position = poDefault
-  PixelsPerInch = 96
   TextHeight = 16
   object ListView1: TListView
     Left = 0
@@ -25,10 +23,12 @@ object frmJsonTable: TfrmJsonTable
     GridLines = True
     HideSelection = False
     MultiSelect = True
+    OwnerData = True
     ReadOnly = True
     RowSelect = True
     TabOrder = 0
     ViewStyle = vsReport
+    OnData = ListView1Data
     OnDblClick = ListView1DblClick
   end
   object ActionList1: TActionList

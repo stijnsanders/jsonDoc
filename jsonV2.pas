@@ -4,7 +4,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, ComCtrls, StdActns, ActnList;
+  Dialogs, ComCtrls, StdActns, ActnList, jsonDoc;
 
 type
   TfrmJsonTable = class(TForm)
@@ -15,9 +15,11 @@ type
     procedure EditSelectAll1Execute(Sender: TObject);
     procedure EditCopy1Execute(Sender: TObject);
     procedure ListView1DblClick(Sender: TObject);
+    procedure ListView1Data(Sender: TObject; Item: TListItem);
   private
     FListSource:TForm;
     FListNode:TTreeNode;
+    FItems: array of IJSONDocument;
   protected
     procedure DoShow; override;
     procedure CreateParams(var Params: TCreateParams); override;
@@ -31,7 +33,7 @@ var
 
 implementation
 
-uses jsonDoc, Clipbrd;
+uses Clipbrd;
 
 {$R *.dfm}
 
@@ -76,15 +78,13 @@ end;
 procedure TfrmJsonTable.BuildTable(ListSource: TForm; ListNode: TTreeNode;
   const v: Variant);
 var
-  d,d1:IJSONDocument;
+  d,cw:IJSONDocument;
   e:IJSONEnumerator;
   i,j,k,l,n1,n2:integer;
   sl:TStringList;
   lc:TListColumn;
-  li:TListItem;
-  v1:Variant;
   vt:TVarType;
-  s,t:string;
+  s:string;
 begin
   //assert TVarData(v).VType=varArray or varUnknown
   FListSource:=ListSource;
@@ -97,17 +97,43 @@ begin
     n1:=VarArrayLowBound(v,1);//assert 0
     n2:=VarArrayHighBound(v,1);
 
+    i:=n2-n1+1;
+    ListView1.Items.Count:=i;
+    SetLength(FItems,i);
+
     sl:=TStringList.Create;
     try
+      cw:=JSON;
       for i:=n1 to n2 do
        begin
         d:=JSON(v[i]);
+        FItems[i-n1]:=d;
         if d<>nil then
          begin
           e:=JSONEnum(d);
           j:=0;
           while e.Next do
            begin
+
+            //guess column width
+            vt:=PVarData(e.v0).VType;
+            l:=0;//default
+            if (vt and varArray)=0 then
+              case vt of
+                varNull,varEmpty:;
+                varOleStr,varString:
+                  l:=Length(VarToStr(e.Value));
+                varBoolean:;
+                varUnknown,varDispatch:l:=Length(e.Key);//
+                varShortInt,varSmallint,varInteger,
+                varSingle,varDouble,varCurrency,//?
+                $000E,//varDecimal
+                varByte,varWord,varLongWord,varInt64,
+                $0015://varWord64
+                  l:=Length(VarToStr(e.Value))+2;
+              end;
+
+            //list key
             k:=sl.IndexOf(e.Key);
             if k=-1 then
              begin
@@ -116,9 +142,15 @@ begin
                 sl.Insert(j,e.Key)
               else
                 sl.Add(e.Key);
+              if l=0 then l:=Length(e.Key);              
+              cw[e.Key]:=l;
              end
             else
+             begin
               j:=k;
+              if l>cw[e.Key] then cw[e.Key]:=l;
+             end;
+
            end;
          end;
        end;
@@ -129,113 +161,11 @@ begin
        begin
         lc:=ListView1.Columns.Add;
         lc.Caption:=sl[i];
-        lc.Width:=-1;//-2?
+        l:=cw[sl[i]];
+        if l<4 then l:=4;
+        if l>80 then l:=80;
+        lc.Width:=l*10;
         //lc.Alignment? see below
-       end;
-
-      //TODO: switch to OwnerData
-
-      for i:=n1 to n2 do
-       begin
-        d1:=JSON(v[i]);
-        li:=ListView1.Items.Add;
-        for j:=0 to sl.Count-1 do
-         begin
-          v1:=d1[sl[j]];
-
-          vt:=TVarData(v1).VType;
-          if (vt and varArray)<>0 then
-           begin
-            //assert VarArrayDimCount(xValue)=1
-            l:=VarArrayHighBound(v1,1)-
-              VarArrayLowBound(v1,1)+1;
-            if l=0 then
-              s:='[]'
-            else
-              s:=Format('[%s#%d]',[VarTypeStr(vt),l]);
-           end
-          else
-            case vt of
-              //
-              varNull,varEmpty:
-                s:='';//'(null)';
-              varOleStr,varString:
-               begin
-                s:=VarToStr(v1);
-                l:=Length(s);
-                for k:=1 to l do
-                  if s[k]<' ' then
-                    s[k]:=' ';
-               end;
-              varBoolean:
-                if v1 then
-                  s:='true'
-                else
-                  s:='false';
-              varUnknown,varDispatch:
-                if (TVarData(v1).VUnknown<>nil) and
-                  (IUnknown(v1).QueryInterface(IJSONDocument,d)=S_OK) then
-                 begin
-                  e:=(d as IJSONEnumerable).NewEnumerator;
-                  if e.EOF then s:='{}' else
-                   begin
-                    s:='';
-                    while e.Next and (Length(s)<255) do
-                     begin
-                      s:=s+', '+e.Key;
-                      vt:=TVarData(e.Value).VType;
-                      case vt of
-                        varNull,varEmpty:;//s:=s+': null';
-                        varOleStr,varString:
-                         begin
-                          t:=VarToStr(e.Value);
-                          if Length(t)>30 then
-                            s:=s+': "'+Copy(t,1,30)+'...'
-                          else
-                            s:=s+': "'+t+'"';
-                         end;
-                        varBoolean:if e.Value then s:=s+': true' else s:=s+': false';
-                        varUnknown,varDispatch:s:=s+':?';
-                        varArray..(varArray or varTypeMask):
-                          s:=s+':[#'+IntToStr(VarArrayHighBound(e.Value,1)-
-                            VarArrayLowBound(e.Value,1)+1)+']';
-                        else
-                         begin
-                          try
-                            t:=VarToStr(e.Value);
-                            if Length(t)>32 then t:=Copy(t,1,30)+'...';
-                          except
-                            t:='?';
-                          end;
-                          s:=s+' ('+VarTypeStr(vt)+') '+t;
-                         end;
-                      end;
-                     end;
-                    s[1]:='{';
-                    if e.EOF then s:=s+'}' else s:=s+' ...';
-                   end;
-                 end
-                else
-                  s:='('+VarTypeStr(vt)+')???';
-              varShortInt,varSmallint,varInteger,
-              //varSingle,varDouble,varCurrency,//?
-              $000E,//varDecimal
-              varByte,varWord,varLongWord,varInt64,
-              $0015://varWord64
-               begin
-                ListView1.Column[j].Alignment:=taRightJustify;
-                s:=VarToStr(v1);
-                //TODO: align floats on decimal separator? 
-               end;
-              else
-                s:='('+VarTypeStr(vt)+') '+VarToStr(v1);
-            end;
-
-          if j=0 then
-            li.Caption:=s
-          else
-            li.SubItems.Add(s);
-         end;
        end;
 
     finally
@@ -244,6 +174,115 @@ begin
   finally
     ListView1.Items.EndUpdate;
   end;
+end;
+
+procedure TfrmJsonTable.ListView1Data(Sender: TObject; Item: TListItem);
+var
+  d:IJSONDocument;
+  e:IJSONEnumerator;
+  i,k,l:integer;
+  v1:Variant;
+  vt:TVarType;
+  s,t:string;
+begin
+  //assert Item.SubItems.Count=0
+  for i:=0 to ListView1.Columns.Count-1 do
+   begin
+    v1:=FItems[Item.Index][ListView1.Columns[i].Caption];
+
+    vt:=TVarData(v1).VType;
+    if (vt and varArray)<>0 then
+     begin
+      //assert VarArrayDimCount(xValue)=1
+      l:=VarArrayHighBound(v1,1)-
+        VarArrayLowBound(v1,1)+1;
+      if l=0 then
+        s:='[]'
+      else
+        s:=Format('[%s#%d]',[VarTypeStr(vt),l]);
+     end
+    else
+      case vt of
+        //
+        varNull,varEmpty:
+          s:='';//'(null)';
+        varOleStr,varString:
+         begin
+          s:=VarToStr(v1);
+          l:=Length(s);
+          for k:=1 to l do
+            if s[k]<' ' then
+              s[k]:=' ';
+         end;
+        varBoolean:
+          if v1 then
+            s:='true'
+          else
+            s:='false';
+        varUnknown,varDispatch:
+          if (TVarData(v1).VUnknown<>nil) and
+            (IUnknown(v1).QueryInterface(IJSONDocument,d)=S_OK) then
+           begin
+            e:=(d as IJSONEnumerable).NewEnumerator;
+            if e.EOF then s:='{}' else
+             begin
+              s:='';
+              while e.Next and (Length(s)<255) do
+               begin
+                s:=s+', '+e.Key;
+                vt:=TVarData(e.Value).VType;
+                case vt of
+                  varNull,varEmpty:;//s:=s+': null';
+                  varOleStr,varString:
+                   begin
+                    t:=VarToStr(e.Value);
+                    if Length(t)>30 then
+                      s:=s+': "'+Copy(t,1,30)+'...'
+                    else
+                      s:=s+': "'+t+'"';
+                   end;
+                  varBoolean:if e.Value then s:=s+': true' else s:=s+': false';
+                  varUnknown,varDispatch:s:=s+':?';
+                  varArray..(varArray or varTypeMask):
+                    s:=s+':[#'+IntToStr(VarArrayHighBound(e.Value,1)-
+                      VarArrayLowBound(e.Value,1)+1)+']';
+                  else
+                   begin
+                    try
+                      t:=VarToStr(e.Value);
+                      if Length(t)>32 then t:=Copy(t,1,30)+'...';
+                    except
+                      t:='?';
+                    end;
+                    s:=s+' ('+VarTypeStr(vt)+') '+t;
+                   end;
+                end;
+               end;
+              s[1]:='{';
+              if e.EOF then s:=s+'}' else s:=s+' ...';
+             end;
+           end
+          else
+            s:='('+VarTypeStr(vt)+')???';
+        varShortInt,varSmallint,varInteger,
+        //varSingle,varDouble,varCurrency,//?
+        $000E,//varDecimal
+        varByte,varWord,varLongWord,varInt64,
+        $0015://varWord64
+         begin
+          ListView1.Column[i].Alignment:=taRightJustify;
+          s:=VarToStr(v1);
+          //TODO: align floats on decimal separator?
+         end;
+        else
+          s:='('+VarTypeStr(vt)+') '+VarToStr(v1);
+      end;
+
+    if i=0 then
+      Item.Caption:=s
+    else
+      Item.SubItems.Add(s);
+   end;
 end;
 
 procedure TfrmJsonTable.CreateParams(var Params: TCreateParams);
