@@ -1,3 +1,9 @@
+v1.2.5
+- IJSONDocument.v0 function for direct variant access
+- newJSON, newJSONDocArray functions
+- JSONDocArray(Variant) overload
+- parsing performance improvements
+
 v1.2.4
 - UseIJSONDocArray to enable automatic use of IJSONDocArray instances on a "[{" sequence
 - isJSON, isJSONArray, isJSONDocArray functions

@@ -2,11 +2,11 @@
 
 jsonDoc.pas
 
-Copyright 2015-2024 Stijn Sanders
+Copyright 2015-2025 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
-v1.2.4
+v1.2.5
 
 }
 unit jsonDoc;
@@ -89,6 +89,7 @@ type
     function ToVarArray: Variant; stdcall;
     procedure Clear; stdcall;
     procedure Delete(const Key: WideString); stdcall;
+    function v0(const Key: WideString): pointer; stdcall;
     property Item[const Key: WideString]: Variant
       read Get_Item write Set_Item; default;
     property AsString: WideString read ToString write Parse;
@@ -233,6 +234,7 @@ function ja(const Item:Variant): IJSONArray; overload;
 }
 function JSONDocArray: IJSONDocArray; overload;
 function JSONDocArray(const Items:array of IJSONDocument): IJSONDocArray; overload;
+function JSONDocArray(const x: Variant): IJSONDocArray; overload;
 
 {
   isJSON, isJSONArray, isJSONDocArray
@@ -243,6 +245,12 @@ function isJSON(const v: Variant; var d: IJSONDocument): boolean; //inline;
 function isJSONArray(const v: Variant; var a: IJSONArray): boolean; //inline;
 function isJSONDocArray(const v: Variant; var a: IJSONDocArray): boolean; //inline;
 
+{
+  newJSON, newJSONDocArray
+  assigns new instances and returns a reference for concise syntax
+}
+function newJSON(var d: IJSONDocument): IJSONDocument;
+function newJSONDocArray(var a: IJSONDocArray): IJSONDocArray;
 
 {
   JSON_UseIJSONArray
@@ -329,6 +337,7 @@ type
     function Get_Item(const Key: WideString): Variant; stdcall;
     procedure Set_Item(const Key: WideString; const Value: Variant); stdcall;
     function ReUse(const Key: WideString): Variant; stdcall;
+    function v0(const Key: Widestring): pointer; stdcall;
   public
     procedure AfterConstruction; override;
     destructor Destroy; override;
@@ -736,6 +745,43 @@ begin
   {$ENDIF}
 end;
 
+function TJSONDocument.v0(const Key: WideString): pointer;
+var
+  i,GotIndex,GotSorted:integer;
+const
+  GrowStep=$20;//not too much, not too little (?)
+begin
+  {$IFDEF JSONDOC_THREADSAFE}
+  EnterCriticalSection(FLock);
+  try
+  {$ENDIF}
+    //if ((VarType(Value) and varArray)<>0) and (VarArrayDimCount(v)>1) then
+    //  raise EJSONException.Create(
+    //    'VarArray: multi-dimensional arrays not supported');
+    if not GetKeyIndex(Key,GotIndex,GotSorted) then
+     begin
+      if FElementIndex=FElementSize then
+       begin
+        inc(FElementSize,GrowStep);
+        SetLength(FElements,FElementSize);
+       end;
+      for i:=FElementIndex-1 downto GotSorted do
+        FElements[i+1].SortIndex:=FElements[i].SortIndex;
+      GotIndex:=FElementIndex;
+      inc(FElementIndex);
+      FElements[GotSorted].SortIndex:=GotIndex;
+      FElements[GotIndex].Key:=Key;
+     end;
+    Result:=@FElements[GotIndex].Value;
+    FElements[GotIndex].LoadIndex:=FLoadIndex;
+    //FDirty:=true;
+  {$IFDEF JSONDOC_THREADSAFE}
+  finally
+    LeaveCriticalSection(FLock);
+  end;
+  {$ENDIF}
+end;
+
 {$IFDEF JSONDOC_P2}
 {$DEFINE JSONDOC_JSON_LOOSE}
 {$DEFINE JSONDOC_JSON_PASCAL_STRINGS}
@@ -920,7 +966,16 @@ var
       while di<i2 do
        begin
         //assert ii<=Length(Result);
-        if jsonData[di]='\' then
+        u:=di;
+        while (u<i2) and (jsonData[u]<>'\') do inc(u);
+        v:=u-di;
+        if v<>0 then
+         begin
+          Move(jsonData[di],Result[ii],v*SizeOf(WideChar));
+          inc(di,v);
+          inc(ii,v);
+         end;
+        if (di<i2) and (jsonData[di]='\') then
          begin
           inc(di);
           case AnsiChar(jsonData[di]) of
@@ -975,13 +1030,11 @@ var
             else raise EJSONDecodeException.Create(
               'JSON Unknown escape sequence'+ExVicinity(di));
           end;
-         end
-        else
-          Result[ii]:=jsonData[di];
-        inc(di);
-        inc(ii);
+          inc(di);
+          inc(ii);
+         end;
        end;
-      SetLength(Result,ii-1);
+      if ii-1<>i2-i1 then SetLength(Result,ii-1);
      end;
   end;
 const
@@ -993,7 +1046,7 @@ var
   d:IJSONDocument;
   a:array of Variant;
   at,vt:TVarType;
-  procedure SetValue(const v:Variant);
+  function rValue:PVariant;
   begin
     //assert da=nil
     if IsArray then
@@ -1003,79 +1056,11 @@ var
         inc(al,arrGrowStep);//not too much, not too little (?)
         SetLength(a,al);
        end;
-      a[ai]:=v;
-      //detect same type elements array
-      vt:=TVarData(v).VType;
-      case at of
-        varEmpty:
-          at:=vt;
-        varShortInt,varByte://i1,u1
-          case vt of
-            varSmallInt,varInteger,varSingle,varDouble,
-            varLongWord,varInt64,$0015:
-              at:=vt;
-            varShortInt:
-              ;//at:=varShortInt;
-            else
-              at:=varVariant;
-          end;
-        varSmallint,varWord://i2,u2
-          case vt of
-            varInteger,varSingle,varDouble,varLongWord,varInt64,$0015:
-              at:=vt;
-            varSmallInt,
-            varShortInt,varByte,varWord:
-              ;//at:=varSmallInt;
-            else
-              at:=varVariant;
-          end;
-        varInteger,varLongWord://i4,u4
-          case vt of
-            varSingle,varDouble,varInt64,$0015:
-              at:=vt;
-            varSmallInt,varInteger,
-            varShortInt,varByte,varWord,varLongWord:
-              ;//at:=varInteger;
-            else
-              at:=varVariant;
-          end;
-        varInt64,$0015://i8
-          case vt of
-            varSingle,varDouble:
-              at:=vt;
-            varSmallInt,varInteger,
-            varShortInt,varByte,varWord,varLongWord,varInt64,$0015:
-              ;//at:=varInt64;
-            else
-              at:=varVariant;
-          end;
-        varSingle:
-          case vt of
-            varDouble:
-              at:=vt;
-            varSmallInt,varInteger,varSingle,
-            varShortInt,varByte,varWord,varLongWord:
-              ;//at:=varSingle
-            else
-              at:=varVariant;
-          end;
-        varDouble:
-          case vt of
-            varSmallInt,varInteger,varSingle,varDouble,
-            varShortInt,varByte,varWord,varLongWord:
-              ;//at:=varDouble
-            else
-              at:=varVariant;
-          end;
-        varVariant:
-          ;//Already creating an VarArray of varVariant
-        else
-          if at<>vt then at:=varVariant;
-      end;
+      Result:=@a[ai];
       inc(ai);
      end
     else
-      d[GetStringValue(k1,k2)]:=v
+      Result:=d.v0(GetStringValue(k1,k2));
   end;
 var
   firstItem,b,daSet:boolean;
@@ -1199,9 +1184,6 @@ begin
                      end;
                     v:=JSON;
                     a[ai]:=v;
-                    //detect same type elements array
-                    if at=varEmpty then at:=varUnknown else
-                      if at<>varUnknown then at:=varVariant;
                     inc(ai);
                    end
                 else
@@ -1258,7 +1240,7 @@ begin
             if b then //if WasArray then
              begin
               stack[stackIndex].k1:=a1;
-              stack[stackIndex].k2:=at;
+              stack[stackIndex].k2:=0;
               stack[stackIndex].d:=nil;
              end
             else
@@ -1271,10 +1253,7 @@ begin
             firstItem:=true;
             if da=nil then
               if IsArray then
-               begin
-                a1:=ai;
-                at:=varEmpty;//used to detect same type elements array
-               end
+                a1:=ai
               else
                 d:=IUnknown(v) as IJSONDocument;
            end;
@@ -1285,7 +1264,7 @@ begin
            begin
             GetStringIndexes(v1,v2);
             if da=nil then
-              SetValue(GetStringValue(v1,v2))
+              rValue^:=GetStringValue(v1,v2)
             else
               CheckValue;
            end;
@@ -1295,7 +1274,7 @@ begin
            begin
             GetPascalIndexes(v1,v2);
             if da=nil then
-              SetValue(GetStringValue(v1,v2))
+              rValue^:=GetStringValue(v1,v2)
             else
               CheckValue;
            end;
@@ -1318,11 +1297,11 @@ begin
               raise EJSONDecodeException.Create(
                 'JSON Unrecognized value type'+ExVicinity(i));
             if v64>=$80000000 then //int64
-              SetValue(v64)
+              rValue^:=v64
             else if v64>=$80 then //int32
-              SetValue(integer(v64))
+              rValue^:=integer(v64)
             else //int8
-              SetValue(SmallInt(v64));
+              rValue^:=SmallInt(v64);
            end;
           {$ENDIF}
 
@@ -1346,17 +1325,17 @@ begin
                 while (i<=l) and (AnsiChar(jsonData[i]) in
                   ['0'..'9','-','+','e','E']) do inc(i);
                 //try except EConvertError?
-                SetValue(StrToFloat(Copy(jsonData,v1,i-v1)));
+                rValue^:=StrToFloat(Copy(jsonData,v1,i-v1));
                end
               else
                begin
                 //integer
                 if v64>=$80000000 then //int64
-                  if b then SetValue(-v64) else SetValue(v64)
+                  if b then rValue^:=-v64 else rValue^:=v64
                 else if v64>=$80 then //int32
-                  if b then SetValue(-integer(v64)) else SetValue(integer(v64))
+                  if b then rValue^:=-integer(v64) else rValue^:=integer(v64)
                 else //int8
-                  if b then SetValue(-SmallInt(v64)) else SetValue(SmallInt(v64));
+                  if b then rValue^:=-SmallInt(v64) else rValue^:=SmallInt(v64);
                end;
              end
             else
@@ -1392,17 +1371,17 @@ begin
             if da=nil then
               if (v2-v1=4) and (jsonData[v1]='t') and (jsonData[v1+1]='r') and
                 (jsonData[v1+2]='u') and (jsonData[v1+3]='e') then
-                SetValue(true)
+                rValue^:=true
               else
               if (v2-v1=5) and (jsonData[v1]='f') and (jsonData[v1+1]='a') and
                 (jsonData[v1+2]='l') and (jsonData[v1+3]='s') and (jsonData[v1+4]='e') then
-                SetValue(false)
+                rValue^:=false
               else
               if (v2-v1=4) and (jsonData[v1]='n') and (jsonData[v1+1]='u') and
                 (jsonData[v1+2]='l') and (jsonData[v1+3]='l') then
-                SetValue(Null)
+                rValue^:=Null
               else
-                SetValue(GetStringValue(v1,v2))
+                rValue^:=GetStringValue(v1,v2)
             else
               CheckValue;
            end;
@@ -1414,7 +1393,7 @@ begin
             Expect('r','JSON true misspelled');
             Expect('u','JSON true misspelled');
             Expect('e','JSON true misspelled');
-            if da=nil then SetValue(true) else CheckValue;
+            if da=nil then rValue^:=true else CheckValue;
            end;
           'f'://false
            begin
@@ -1423,7 +1402,7 @@ begin
             Expect('l','JSON false misspelled');
             Expect('s','JSON false misspelled');
             Expect('e','JSON false misspelled');
-            if da=nil then SetValue(false) else CheckValue;
+            if da=nil then rValue^:=false else CheckValue;
            end;
           'n'://null
            begin
@@ -1431,7 +1410,7 @@ begin
             Expect('u','JSON null misspelled');
             Expect('l','JSON null misspelled');
             Expect('l','JSON null misspelled');
-            if da=nil then SetValue(Null) else CheckValue;
+            if da=nil then rValue^:=Null else CheckValue;
             //TODO: support null in IJSONDocArray
            end;
 
@@ -1470,7 +1449,80 @@ begin
                      end
                     else
                      begin
+                      //detect same type elements array
+                      at:=varEmpty;
+                      for k1:=a1 to ai-1 do
+                       begin
+                        vt:=TVarData(a[k1]).VType;
+                        case at of
+                          varEmpty:
+                            at:=vt;
+                          varShortInt,varByte://i1,u1
+                            case vt of
+                              varSmallInt,varInteger,varSingle,varDouble,
+                              varLongWord,varInt64,$0015:
+                                at:=vt;
+                              varShortInt:
+                                ;//at:=varShortInt;
+                              else
+                                at:=varVariant;
+                            end;
+                          varSmallint,varWord://i2,u2
+                            case vt of
+                              varInteger,varSingle,varDouble,varLongWord,varInt64,$0015:
+                                at:=vt;
+                              varSmallInt,
+                              varShortInt,varByte,varWord:
+                                ;//at:=varSmallInt;
+                              else
+                                at:=varVariant;
+                            end;
+                          varInteger,varLongWord://i4,u4
+                            case vt of
+                              varSingle,varDouble,varInt64,$0015:
+                                at:=vt;
+                              varSmallInt,varInteger,
+                              varShortInt,varByte,varWord,varLongWord:
+                                ;//at:=varInteger;
+                              else
+                                at:=varVariant;
+                            end;
+                          varInt64,$0015://i8
+                            case vt of
+                              varSingle,varDouble:
+                                at:=vt;
+                              varSmallInt,varInteger,
+                              varShortInt,varByte,varWord,varLongWord,varInt64,$0015:
+                                ;//at:=varInt64;
+                              else
+                                at:=varVariant;
+                            end;
+                          varSingle:
+                            case vt of
+                              varDouble:
+                                at:=vt;
+                              varSmallInt,varInteger,varSingle,
+                              varShortInt,varByte,varWord,varLongWord:
+                                ;//at:=varSingle
+                              else
+                                at:=varVariant;
+                            end;
+                          varDouble:
+                            case vt of
+                              varSmallInt,varInteger,varSingle,varDouble,
+                              varShortInt,varByte,varWord,varLongWord:
+                                ;//at:=varDouble
+                              else
+                                at:=varVariant;
+                            end;
+                          varVariant:
+                            ;//Already creating an VarArray of varVariant
+                          else
+                            if at<>vt then at:=varVariant;
+                        end;
+                       end;
                       if not(VarTypeIsValidArrayType(at)) then at:=varVariant;
+                      //build array
                       v:=VarArrayCreate([0,ai-a1-1],at);
                       k1:=a1;
                       k2:=0;
@@ -1507,7 +1559,6 @@ begin
                 if stack[stackIndex].d=nil then
                  begin
                   a1:=stack[stackIndex].k1;
-                  at:=stack[stackIndex].k2;
                   IsArray:=true;
                  end
                 else
@@ -1529,7 +1580,7 @@ begin
                      end;
                end;
               //set array
-              if (da=nil) and (TVarData(v).VType<>varNull) then SetValue(v);
+              if (da=nil) and (TVarData(v).VType<>varNull) then rValue^:=v;
              end;
            end;
          end;
@@ -3093,6 +3144,40 @@ begin
   for i:=0 to Length(Items)-1 do Result.Add(Items[i]);
 end;
 
+function JSONDocArray(const x: Variant): IJSONDocArray;
+var
+  vt:TVarType;
+  d:IJSONDocument;
+  i:integer;
+begin
+  vt:=TVarData(x).VType;
+  if (vt and varArray)=0 then
+    case vt of
+      varNull,varEmpty:
+        Result:=nil;
+      varOleStr,varString,$0102:
+       begin
+        Result:=TJSONDocArray.Create;
+        d:=JSON(['',Result]);
+        d.Parse('{"":'+x+'}');
+       end;
+      varUnknown:
+        if (TVarData(x).VUnknown<>nil) and
+          (IUnknown(x).QueryInterface(IID_IJSONDocArray,Result)=S_OK) then
+
+        else
+          raise EJSONException.Create('No supported interface found on object');
+      else
+        raise EJSONException.Create('Unsupported variant type '+IntToHex(vt,4));
+    end
+  else
+   begin
+    Result:=TJSONDocArray.Create;
+    for i:=VarArrayLowBound(x,1) to VarArrayHighBound(x,1) do
+      Result.Add(JSON(x[i]));
+   end;
+end;
+
 function isJSON(const v: Variant; var d: IJSONDocument): boolean;
 begin
   Result:=
@@ -3124,6 +3209,18 @@ begin
   jd:=TJSONDocument.Create;
   jd.UseIJSONDocArray:=true;
   Result:=jd as IJSONDocument;
+end;
+
+function newJSON(var d: IJSONDocument): IJSONDocument;
+begin
+  d:=TJSONDocument.Create;
+  Result:=d;
+end;
+
+function newJSONDocArray(var a: IJSONDocArray): IJSONDocArray;
+begin
+  a:=TJSONDocArray.Create;
+  Result:=a;
 end;
 
 initialization
