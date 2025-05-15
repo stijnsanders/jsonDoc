@@ -84,7 +84,6 @@ var
   sl:TStringList;
   lc:TListColumn;
   vt:TVarType;
-  s:string;
 begin
   //assert TVarData(v).VType=varArray or varUnknown
   FListSource:=ListSource;
@@ -247,15 +246,12 @@ begin
                     s:=s+':[#'+IntToStr(VarArrayHighBound(e.Value,1)-
                       VarArrayLowBound(e.Value,1)+1)+']';
                   else
-                   begin
                     try
-                      t:=VarToStr(e.Value);
-                      if Length(t)>32 then t:=Copy(t,1,30)+'...';
+                      s:=VarToStr(e.Value);
+                      if Length(s)>32 then s:=Copy(s,1,30)+'...';
                     except
                       t:='?';
                     end;
-                    s:=s+' ('+VarTypeStr(vt)+') '+t;
-                   end;
                 end;
                end;
               s[1]:='{';
@@ -275,7 +271,7 @@ begin
           //TODO: align floats on decimal separator?
          end;
         else
-          s:='('+VarTypeStr(vt)+') '+VarToStr(v1);
+          s:=VarToStr(v1);
       end;
 
     if i=0 then
