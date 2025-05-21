@@ -158,6 +158,7 @@ type
     procedure LoadItem(Index: integer; const Doc: IJSONDocument); stdcall;
     procedure Clear; stdcall;
     function GetJSON(Index: integer): WideString; stdcall;
+    procedure Parse(const JSONData: WideString); stdcall;
   end;
 
 {
@@ -463,6 +464,7 @@ type
     function IJSONDocArray.ToString=JSONToString;
     procedure Clear; stdcall;
     function GetJSON(Index: integer): WideString; stdcall;
+    procedure Parse(const JSONData: WideString); stdcall;
   public
     constructor Create;
     destructor Destroy; override;
@@ -2900,6 +2902,24 @@ begin
   {$ENDIF}
 end;
 
+procedure TJSONDocArray.Parse(const JSONData: WideString);
+var
+  i,l:integer;
+begin
+  l:=Length(JSONData);
+  i:=1;
+  while (i<=l) and (JSONData[i]<=' ') do inc(i);
+  if (i<=l) and (JSONData[i]='[') then
+    JSON(['',Self as IJSONDocArray]).Parse('{"":'+JSONData+'}')
+  else
+    {$IFDEF JSONDOC_JSON_LOOSE}
+    if (i<=l) and (JSONData[i]='{') then //?
+      AddJSON(JSONData)
+    else
+    {$ENDIF}
+      raise EJSONDecodeException.Create('JSON doesn''t define an array, "[" expected.');
+end;
+
 function TJSONDocArray.JSONToString: WideString;
 var
   i,x,l:integer;
@@ -3147,7 +3167,6 @@ end;
 function JSONDocArray(const x: Variant): IJSONDocArray;
 var
   vt:TVarType;
-  d:IJSONDocument;
   i:integer;
 begin
   vt:=TVarData(x).VType;
@@ -3158,8 +3177,7 @@ begin
       varOleStr,varString,$0102:
        begin
         Result:=TJSONDocArray.Create;
-        d:=JSON(['',Result]);
-        d.Parse('{"":'+x+'}');
+        Result.Parse(x);
        end;
       varUnknown:
         if (TVarData(x).VUnknown<>nil) and

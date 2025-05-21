@@ -2,6 +2,7 @@ v1.2.5
 - IJSONDocument.v0 function for direct variant access
 - newJSON, newJSONDocArray functions
 - JSONDocArray(Variant) overload
+- IJSONDocArray.Parse
 - parsing performance improvements
 
 v1.2.4
