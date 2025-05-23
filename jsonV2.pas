@@ -4,7 +4,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, ComCtrls, StdActns, ActnList, jsonDoc;
+  Dialogs, StdCtrls, ComCtrls, StdActns, ActnList, jsonDoc;
 
 type
   TfrmJsonTable = class(TForm)
@@ -19,6 +19,7 @@ type
   private
     FListSource:TForm;
     FListNode:TTreeNode;
+    FKeys:array of WideString;
     FItems: array of IJSONDocument;
   protected
     procedure DoShow; override;
@@ -156,14 +157,16 @@ begin
 
       if sl.Count=0 then sl.Add('?');
 
+      SetLength(FKeys,sl.Count);
       for i:=0 to sl.Count-1 do
        begin
+        FKeys[i]:=sl[i];
         lc:=ListView1.Columns.Add;
         lc.Caption:=sl[i];
         l:=cw[sl[i]];
         if l<4 then l:=4;
         if l>80 then l:=80;
-        lc.Width:=l*10;
+        lc.Width:=(l+2)*8;//optimistic guess
         //lc.Alignment? see below
        end;
 
@@ -187,7 +190,7 @@ begin
   //assert Item.SubItems.Count=0
   for i:=0 to ListView1.Columns.Count-1 do
    begin
-    v1:=FItems[Item.Index][ListView1.Columns[i].Caption];
+    v1:=FItems[Item.Index][FKeys[i]];
 
     vt:=TVarData(v1).VType;
     if (vt and varArray)<>0 then
@@ -301,11 +304,20 @@ var
 begin
   Screen.Cursor:=crHourGlass;
   try
+    //TODO: update to possibly altered column sequence (by Columns[].Caption?)
+
     //if IncludeColumns then
+    {
     s:=ListView1.Columns[0].Caption;
     for i:=1 to ListView1.Columns.Count-1 do
       s:=s+#9+StripTab(ListView1.Column[i].Caption);
+    }
+    s:=FKeys[0];
+    for i:=1 to Length(FKeys)-1 do
+      s:=s+#9+StripTab(FKeys[i]);
+
     s:=s+#13#10;
+
     for i:=0 to ListView1.Items.Count-1 do
      begin
       li:=ListView1.Items[i];
