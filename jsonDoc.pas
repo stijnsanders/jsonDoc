@@ -220,6 +220,13 @@ function JSON(const x: array of Variant): IJSONDocument; overload;
 function JSON(const x: Variant): IJSONDocument; overload;
 
 {
+  JSON function: JSON prepare and parse
+  combine the document builder with a parse call
+}
+function JSON(const x: array of Variant; const d: WideString): IJSONDocument;
+  overload; //inline;
+
+{
   JSONEnum function
   get a new enumerator to enumeratare the key-value pairs in the document
 }
@@ -3108,6 +3115,12 @@ begin
     else
       Result:=IUnknown(x) as IJSONDocument;
   end;
+end;
+
+function JSON(const x: array of Variant; const d: WideString): IJSONDocument;
+begin
+  Result:=JSON(x);
+  Result.Parse(d);
 end;
 
 function JSONEnum(const x: IJSONDocument): IJSONEnumerator;
