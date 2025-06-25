@@ -181,6 +181,17 @@ In cases like this, pre-load the parent document with an `IJSONDocArray` instanc
         displayInfo(d1['id'],d1['name']);
        end;
 
+That's the explicit way to enumerate the documents in the array, if you want more concise syntax, you can use the `JSONEnum` overload for `IJSONDocArray` like this:
+
+    var
+      a:IJSONDocArray;
+      d:IJSONDocArrayEnumerator;
+    begin
+      JSON(['r',newJSONDocArray(a)]).Parse(bigJsonBlobFromNetwork);
+      d:=JSONEnum(a);
+      while d.Read do
+        displayInfo(d['id'],d['name']);
+
 Also when constructing an array of documents, use an `IJSONDocArray` instance and re-use a single `IJSONDocument` instance to fill the array:
 
     var

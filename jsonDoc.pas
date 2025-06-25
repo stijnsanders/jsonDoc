@@ -6,7 +6,7 @@ Copyright 2015-2025 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
-v1.2.5
+v1.2.6
 
 }
 unit jsonDoc;
@@ -68,6 +68,8 @@ const
     : TGUID = '{4A534F4E-0001-0007-C000-000000000007}';
   IID_IJSONEnumerableSorted
     : TGUID = '{4A534F4E-0001-0008-C000-000000000008}';
+  IID_IJSONDocArrayEnumerator
+    : TGUID = '{4A534F4E-0001-0009-C000-000000000009}';
 
 type
 {
@@ -183,6 +185,19 @@ type
   end;
 
 {
+  IJSONDocArrayEnumerator
+  extends IJSONDocument with enumerator functions, used by the JSONEnum
+  overload for IJSONDocArray instances
+}
+  IJSONDocArrayEnumerator = interface(IJSONDocument)
+    ['{4A534F4E-0001-0009-C000-000000000009}']
+    function EOF: boolean; stdcall;
+    function Next: boolean; stdcall;
+    function Get_DocIndex: integer; stdcall;
+    property DocIndex: integer read Get_DocIndex;
+  end;
+
+{
   JSON function: JSON document factory
   call JSON without parameters do create a new blank document
 }
@@ -212,6 +227,7 @@ function JSONEnum(const x: IJSONDocument): IJSONEnumerator; overload; //inline;
 function JSONEnum(const x: Variant): IJSONEnumerator; overload;
 function JSON(const x: IJSONEnumerator): IJSONDocument; overload; //inline;
 function JSONEnum(const x: IJSONEnumerator): IJSONEnumerator; overload; //inline;
+function JSONEnum(const x: IJSONDocArray): IJSONDocArrayEnumerator; overload; //inline;
 
 {
   JSONEnumSorted function
@@ -397,6 +413,28 @@ type
     function Get_Value: Variant; stdcall;
     procedure Set_Value(const Value: Variant); stdcall;
     function v0: pointer; stdcall;
+  end;
+
+{
+  TJSONDocArrayEnumerator class
+}
+  TJSONDocArrayEnumerator = class(TJSONDocument, IJSONDocArrayEnumerator)
+  private
+    FDocArray: IJSONDocArray;
+    FIndex: integer;
+  public
+    constructor Create(const Data: IJSONDocArray);
+    function IJSONDocArrayEnumerator.Get_Item=Get_Item;
+    procedure IJSONDocArrayEnumerator.Set_Item=Set_Item;
+    procedure IJSONDocArrayEnumerator.Parse=Parse;
+    function IJSONDocArrayEnumerator.ToString=JSONToString;
+    function IJSONDocArrayEnumerator.ToVarArray=ToVarArray;
+    procedure IJSONDocArrayEnumerator.Clear=Clear;
+    procedure IJSONDocArrayEnumerator.Delete=Delete;
+    function IJSONDocArrayEnumerator.v0=v0;
+    function EOF: boolean; stdcall;
+    function Next: boolean; stdcall;
+    function Get_DocIndex: integer; stdcall;
   end;
 
 {
@@ -2957,6 +2995,40 @@ begin
   {$ENDIF}
 end;
 
+{ TJSONDocArrayEnumerator }
+
+constructor TJSONDocArrayEnumerator.Create(const Data: IJSONDocArray);
+begin
+  inherited Create;
+  FDocArray:=Data;
+  FIndex:=-1;//before first, see Next
+end;
+
+function TJSONDocArrayEnumerator.EOF: boolean;
+begin
+  if (FIndex=-1) and (FDocArray.Count=0) then
+    Result:=true
+  else
+    Result:=FIndex>=FDocArray.Count;
+end;
+
+function TJSONDocArrayEnumerator.Get_DocIndex: integer;
+begin
+  Result:=FIndex;
+end;
+
+function TJSONDocArrayEnumerator.Next: boolean;
+begin
+  inc(FIndex);
+  if FIndex>=FDocArray.Count then
+    Result:=false
+  else
+   begin
+    FDocArray.LoadItem(FIndex,Self);
+    Result:=true;
+   end;
+end;
+
 { JSON }
 
 function JSON:IJSONDocument; //overload;
@@ -3120,6 +3192,11 @@ begin
     else
       raise EJSONException.Create('Unsupported variant type '+IntToHex(vt,4));
   end;
+end;
+
+function JSONEnum(const x: IJSONDocArray): IJSONDocArrayEnumerator;
+begin
+  Result:=TJSONDocArrayEnumerator.Create(x);
 end;
 
 function ja(const Items:array of Variant): IJSONArray;
