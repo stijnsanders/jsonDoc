@@ -1725,17 +1725,7 @@ begin
   SetLength(Result,j);
 end;
 
-{
 function JSONVarToStr(const v: Variant):WideString;
-begin
-  if (TVarData(v).VType and varArray)=0 then
-    Result:=JSONVarToStr1(v)
-  else
-    .....
-end;
-}
-
-function JSONVarToStr1(const v: Variant):WideString;
 var
   uu:IUnknown;
   d:IJSONDocument;
@@ -1968,7 +1958,7 @@ begin
           if (vt and varArray)=0 then
            begin
             //not an array, plain value
-            //TODO: deduplicate with JSONVarToStr1(PVariant(e.v0)^);
+            //TODO: deduplicate with JSONVarToStr(PVariant(e.v0)^);
             case vt and varTypeMask of
               varNull:w('null');
               varSmallint,varInteger,varShortInt,
@@ -2603,7 +2593,7 @@ begin
     i:=v1;
     while (i<v2) do
      begin
-      Result:=Result+','+JSONVarToStr1(FData[i]);
+      Result:=Result+','+JSONVarToStr(FData[i]);
       inc(i);
      end;
     Result[1]:='[';
@@ -2671,7 +2661,7 @@ begin
     i:=0;
     while (i<Length(FData)) do
      begin
-      Result:=Result+','+JSONVarToStr1(FData[i]);
+      Result:=Result+','+JSONVarToStr(FData[i]);
       inc(i);
      end;
     Result[1]:='[';

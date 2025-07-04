@@ -374,10 +374,35 @@ end;
 
 procedure TfrmJsonViewer.AppActivate(Sender: TObject);
 var
-  n:TTreeNode;
-  i:integer;
+  n,m:TTreeNode;
+  p:array of string;
+  i,q,l:integer;
+  b:boolean;
+
+  function nLoc:string;
+  begin
+    Result:=Format('%s:%d',[(n as TJSONNode).Key,(n as TJSONNode).Index]);
+  end;
+
 begin
-  //TODO: store/re-apply expanded nodes...
+  //TODO: kill (update?) tabular view forms
+
+  //store current path to root
+  q:=0;
+  l:=0;
+  n:=TreeView1.Selected;
+  while n<>nil do
+   begin
+    if q=l then
+     begin
+      inc(l,$10);
+      SetLength(p,l);//grow step
+     end;
+    p[q]:=nLoc;
+    inc(q);
+    n:=n.Parent;
+   end;
+  //refresh file(s)
   if FFileMulti then
    begin
     TreeView1.Items.BeginUpdate;
@@ -419,6 +444,32 @@ begin
     except
       //silent?
     end;
+  //try to find previous path to root
+  n:=nil;
+  m:=nil;
+  while (q<>0) do
+   begin
+    dec(q);
+    m:=n;
+    if n=nil then
+      n:=TreeView1.Items.GetFirstNode
+    else
+     begin
+      b:=true;
+      TreeView1Expanding(Sender,n,b);
+      n:=n.GetFirstChild;
+     end;
+    while (n<>nil) and (nLoc<>p[q]) do n:=n.GetNextSibling;
+    if n=nil then
+      q:=0//end loop
+    else
+      m:=n;
+   end;
+  if m<>nil then
+   begin
+    m.MakeVisible;
+    TreeView1.Selected:=m;
+   end;
 end;
 
 procedure TfrmJsonViewer.CreateParams(var Params: TCreateParams);
@@ -739,11 +790,15 @@ end;
 
 procedure TfrmJsonViewer.actViewTabularExecute(Sender: TObject);
 var
-  p:TJSONNode;
+  p,n:TJSONNode;
+  r:integer;
   v:Variant;
   f:TfrmJsonTable;
   s:string;
 begin
+  //Ctrl+T on TfrmJsonTable also end up here
+  if Screen.ActiveForm<>Self then Exit;
+  
   p:=TreeView1.Selected as TJSONNode;
   v:=p.Data[p.Key];
   if TVarData(v).VType=varArray or varUnknown then
@@ -751,6 +806,11 @@ begin
     Screen.Cursor:=crHourGlass;
     try
       f:=TfrmJsonTable.Create(Self);
+
+      n:=p;
+      r:=n.Index;
+      if r<>-1 then //item of doc array selected?
+        n:=n.Parent as TJSONNode;
 
       s:='.'+p.Key;
       p:=p.Parent as TJSONNode;
@@ -764,13 +824,16 @@ begin
        end;
       f.Caption:=Copy(s,2,Length(s)-1)+' - '+FFilePath+' - jsonV';
 
-      f.BuildTable(Self,TreeView1.Selected,v);
+      f.BuildTable(Self,n,r,v);
 
       f.Show;
     finally
       Screen.Cursor:=crDefault;
     end;
-   end;
+   end
+  else
+    MessageBox(Handle,'Selected node doesn''t hold tabular data',
+      'jsonV',MB_OK or MB_ICONINFORMATION);
 end;
 
 end.

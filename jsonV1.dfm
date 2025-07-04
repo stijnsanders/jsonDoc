@@ -1,16 +1,18 @@
 object frmJsonViewer: TfrmJsonViewer
   Left = 192
   Top = 124
+  Width = 1088
+  Height = 563
   Caption = 'jsonV'
-  ClientHeight = 524
-  ClientWidth = 1072
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
   Font.Height = -13
   Font.Name = 'Tahoma'
   Font.Style = []
+  OldCreateOrder = True
   Position = poDefault
+  PixelsPerInch = 96
   TextHeight = 16
   object TreeView1: TTreeView
     Left = 0
@@ -121,6 +123,7 @@ object frmJsonViewer: TfrmJsonViewer
       OnExecute = actSortChildrenExecute
     end
     object actViewTabular: TAction
+      Category = 'View'
       Caption = 'actViewTabular'
       ShortCut = 16468
       OnExecute = actViewTabularExecute

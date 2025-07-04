@@ -1,16 +1,18 @@
 object frmJsonTable: TfrmJsonTable
   Left = 192
   Top = 124
+  Width = 1088
+  Height = 563
   Caption = 'jsonV Table View'
-  ClientHeight = 524
-  ClientWidth = 1072
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
   Font.Height = -13
   Font.Name = 'Tahoma'
   Font.Style = []
+  OldCreateOrder = True
   Position = poDefault
+  PixelsPerInch = 96
   TextHeight = 16
   object ListView1: TListView
     Left = 0
@@ -28,8 +30,10 @@ object frmJsonTable: TfrmJsonTable
     RowSelect = True
     TabOrder = 0
     ViewStyle = vsReport
+    OnColumnRightClick = ListView1ColumnRightClick
     OnData = ListView1Data
     OnDblClick = ListView1DblClick
+    OnMouseDown = ListView1MouseDown
   end
   object ActionList1: TActionList
     Left = 32
@@ -48,6 +52,22 @@ object frmJsonTable: TfrmJsonTable
       ImageIndex = 1
       ShortCut = 16451
       OnExecute = EditCopy1Execute
+    end
+  end
+  object PopupMenu1: TPopupMenu
+    Left = 64
+    Top = 48
+    object Sortascending1: TMenuItem
+      Caption = 'Sort &ascending'
+      OnClick = Sortascending1Click
+    end
+    object Sortdescending1: TMenuItem
+      Caption = 'Sort &descending'
+      OnClick = Sortdescending1Click
+    end
+    object Removecolumn1: TMenuItem
+      Caption = '&Remove column'
+      OnClick = Removecolumn1Click
     end
   end
 end
