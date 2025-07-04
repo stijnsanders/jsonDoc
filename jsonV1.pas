@@ -4,7 +4,8 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, ComCtrls, ActnList, jsonDoc, StdActns, StdCtrls, ExtCtrls, Menus;
+  Dialogs, ComCtrls, ActnList, ActiveX, jsonDoc, StdActns, StdCtrls, ExtCtrls,
+  Menus;
 
 type
   TfrmJsonViewer = class(TForm)
@@ -43,6 +44,7 @@ type
     FFileLastMod:int64;
     FFileMulti:boolean;
     FFileLastMods:array of int64;
+    FDropHandler:TObject;
     function LoadJSON(const FilePath:string;var FileLastMod:int64): IJSONDocument;
     procedure ExpandJSON(Parent: TTreeNode; Data: IJSONDocument);
     procedure ExpandString(Parent: TTreeNode; const Data: string);
@@ -50,6 +52,9 @@ type
   protected
     procedure DoShow; override;
     procedure CreateParams(var Params: TCreateParams); override;
+    procedure LoadFiles(const FilePaths:array of string);
+  public
+    procedure BeforeDestruction; override;
   end;
 
   TJSONNode=class(TTreeNode)
@@ -57,10 +62,21 @@ type
     Data:IJSONDocument;
     Key:WideString;
     Index:integer;
-    Loaded:boolean;
+    Loaded,IsDoc:boolean;
     procedure AfterConstruction; override;
     procedure ShowValue(xData: IJSONDocument; const xKey: WideString;
       xIndex: integer; const xValue: Variant);
+  end;
+
+  TDropHandler=class(TInterfacedObject, IDropTarget)
+  protected
+    function DragEnter(const dataObj: IDataObject; grfKeyState: Longint;
+      pt: TPoint; var dwEffect: Longint): HResult; stdcall;
+    function DragOver(grfKeyState: Longint; pt: TPoint;
+      var dwEffect: Longint): HResult; stdcall;
+    function DragLeave: HResult; stdcall;
+    function Drop(const dataObj: IDataObject; grfKeyState: Longint; pt: TPoint;
+      var dwEffect: Longint): HResult; stdcall;
   end;
       
 var
@@ -69,7 +85,7 @@ var
 implementation
 
 uses
-  Clipbrd, ZLib, jsonV2;
+  Clipbrd, ZLib, jsonV2, ShellAPI;
 
 {$R *.dfm}
 
@@ -88,6 +104,7 @@ var
   fn:string;
   p:TJSONNode;
   n:TTreeNode;
+  dh:TDropHandler;
 begin
   inherited;
 
@@ -106,6 +123,11 @@ begin
 
   Application.OnActivate:=AppActivate;
 
+  OleInitialize(nil);
+  dh:=TDropHandler.Create;
+  FDropHandler:=dh;
+  RegisterDragDrop(Handle,dh);
+
   TreeView1.Items.BeginUpdate;
   try
     case ParamCount of
@@ -122,12 +144,14 @@ begin
        begin
         FFileMulti:=true;
         l:=ParamCount;
+        Caption:='('+IntToStr(l)+' files) - jsonV';
         SetLength(FFileLastMods,l);
         for i:=1 to l do
          begin
           fn:=ParamStr(i);
           p:=TreeView1.Items.Add(nil,fn) as TJSONNode;
           p.Data:=LoadJSON(fn,FFileLastMods[i-1]);
+          p.IsDoc:=true;
           p.HasChildren:=true;
          end;
        end;
@@ -137,6 +161,7 @@ begin
   end;
   n:=TreeView1.Items.GetFirstNode;
   if (n<>nil) and (n.getNextSibling=nil) then n.Expand(false);
+  
   ShowWindow(Application.Handle,SW_HIDE);
 end;
 
@@ -266,9 +291,9 @@ begin
       p.Loaded:=true;
       p.HasChildren:=false;
       if p.Data<>nil then
-//        if p.Key='' then
-//          ExpandJSON(Node,p.Data)
-//        else
+        if p.IsDoc then
+          ExpandJSON(Node,p.Data)
+        else
          begin
           v:=p.Data[p.Key];
           i:=0;
@@ -380,8 +405,14 @@ var
   b:boolean;
 
   function nLoc:string;
+  var
+    p:TJSONNode;
   begin
-    Result:=Format('%s:%d',[(n as TJSONNode).Key,(n as TJSONNode).Index]);
+    p:=n as TJSONNode;
+    if p.IsDoc then
+      Result:=p.Text
+    else
+      Result:=Format('%s:%d',[p.Key,p.Index]);
   end;
 
 begin
@@ -403,6 +434,7 @@ begin
     n:=n.Parent;
    end;
   //refresh file(s)
+  b:=false;
   if FFileMulti then
    begin
     TreeView1.Items.BeginUpdate;
@@ -416,8 +448,11 @@ begin
           if GetFileLastMod(n.Text)<>FFileLastMods[i] then
            begin
             n.DeleteChildren;
+            (n as TJSONNode).Loaded:=false;
             (n as TJSONNode).Data:=LoadJSON(n.Text,FFileLastMods[i]);
+            (n as TJSONNode).IsDoc:=true;
             n.HasChildren:=true;
+            b:=true;
            end;
         except
           //silent;
@@ -437,6 +472,7 @@ begin
         try
           TreeView1.Items.Clear;
           ExpandJSON(nil,LoadJSON(FFilePath,FFileLastMod));
+          b:=true;
         finally
           TreeView1.Items.EndUpdate;
         end;
@@ -445,30 +481,33 @@ begin
       //silent?
     end;
   //try to find previous path to root
-  n:=nil;
-  m:=nil;
-  while (q<>0) do
+  if b then
    begin
-    dec(q);
-    m:=n;
-    if n=nil then
-      n:=TreeView1.Items.GetFirstNode
-    else
+    n:=nil;
+    m:=nil;
+    while (q<>0) do
      begin
-      b:=true;
-      TreeView1Expanding(Sender,n,b);
-      n:=n.GetFirstChild;
-     end;
-    while (n<>nil) and (nLoc<>p[q]) do n:=n.GetNextSibling;
-    if n=nil then
-      q:=0//end loop
-    else
+      dec(q);
       m:=n;
-   end;
-  if m<>nil then
-   begin
-    m.MakeVisible;
-    TreeView1.Selected:=m;
+      if n=nil then
+        n:=TreeView1.Items.GetFirstNode
+      else
+       begin
+        b:=true;
+        TreeView1Expanding(Sender,n,b);
+        n:=n.GetFirstChild;
+       end;
+      while (n<>nil) and (nLoc<>p[q]) do n:=n.GetNextSibling;
+      if n=nil then
+        q:=0//end loop
+      else
+        m:=n;
+     end;
+    if m<>nil then
+     begin
+      m.MakeVisible;
+      TreeView1.Selected:=m;
+     end;
    end;
 end;
 
@@ -476,6 +515,58 @@ procedure TfrmJsonViewer.CreateParams(var Params: TCreateParams);
 begin
   inherited;
   Params.WndParent:=GetDesktopWindow;
+end;
+
+procedure TfrmJsonViewer.BeforeDestruction;
+begin
+  inherited;
+  //FDropHandler.Free;
+  (FDropHandler as TDropHandler)._Release;
+end;
+
+procedure TfrmJsonViewer.LoadFiles(const FilePaths: array of string);
+var
+  i,l:integer;
+  fn:string;
+  p:TJSONNode;
+  n:TTreeNode;
+begin
+  TreeView1.Items.BeginUpdate;
+  try
+    TreeView1.Items.Clear;
+    l:=Length(FilePaths);
+    case l of
+      0:TreeView1.Items.Add(nil,'No file specified.');
+      1:
+       begin
+        FFileMulti:=false;
+        SetLength(FFileLastMods,0);
+        fn:=FilePaths[0];
+        Caption:=fn+' - jsonV';
+        Application.Title:=Caption;
+        FFilePath:=fn;
+        ExpandJSON(nil,LoadJSON(fn,FFileLastMod));
+       end;
+      else
+       begin
+        FFileMulti:=true;
+        Caption:='('+IntToStr(l)+' files) - jsonV';
+        SetLength(FFileLastMods,l);
+        for i:=0 to l-1 do
+         begin
+          fn:=FilePaths[i];
+          p:=TreeView1.Items.Add(nil,fn) as TJSONNode;
+          p.Data:=LoadJSON(fn,FFileLastMods[i]);
+          p.IsDoc:=true;
+          p.HasChildren:=true;
+         end;
+       end;
+    end;
+  finally
+    TreeView1.Items.EndUpdate;
+  end;
+  n:=TreeView1.Items.GetFirstNode;
+  if (n<>nil) and (n.getNextSibling=nil) then n.Expand(false);
 end;
 
 { TJSONNode }
@@ -487,6 +578,7 @@ begin
   Key:='';
   Index:=-1;
   Loaded:=false;
+  IsDoc:=false;
 end;
 
 function VarTypeStr(vt:TVarType):string;
@@ -834,6 +926,65 @@ begin
   else
     MessageBox(Handle,'Selected node doesn''t hold tabular data',
       'jsonV',MB_OK or MB_ICONINFORMATION);
+end;
+
+{ TDropHandler }
+
+function TDropHandler.DragEnter(const dataObj: IDataObject;
+  grfKeyState: Integer; pt: TPoint; var dwEffect: Integer): HResult;
+begin
+  dwEffect:=DROPEFFECT_COPY;
+  Result:=S_OK;
+end;
+
+function TDropHandler.DragLeave: HResult;
+begin
+  Result:=S_OK;
+end;
+
+function TDropHandler.DragOver(grfKeyState: Integer; pt: TPoint;
+  var dwEffect: Integer): HResult;
+begin
+  dwEffect:=DROPEFFECT_COPY;
+  Result:=S_OK;
+end;
+
+function TDropHandler.Drop(const dataObj: IDataObject;
+  grfKeyState: Integer; pt: TPoint; var dwEffect: Integer): HResult;
+var
+  f:TFormatEtc;
+  m:TStgMedium;
+  h:HDROP;
+  i,l,z:integer;
+  n:array of string;
+begin
+  //TODO: if frmJsonViewer.FFileMulti and ((grfKeyState and MK_CONTROL)<>0)
+  //  support adding files?
+  try
+    f.cfFormat:=CF_HDROP;
+    f.ptd:=nil;
+    f.dwAspect:=DVASPECT_CONTENT;
+    f.lindex:=-1;
+    f.tymed:=TYMED_HGLOBAL;
+    if dataObj.GetData(f,m)=S_OK then
+     begin
+      h:=m.hGlobal;
+      l:=DragQueryFile(h,NativeUInt(-1),nil,0);
+      SetLength(n,l);
+      for i:=0 to l-1 do
+       begin
+        z:=DragQueryFile(h,i,nil,0);
+        SetLength(n[i],z);
+        DragQueryFile(h,i,@n[i][1],z+1);
+       end;
+      frmJsonViewer.LoadFiles(n);
+      Result:=S_OK;
+     end
+    else
+      Result:=E_FAIL;
+  except
+    Result:=E_FAIL;
+  end;
 end;
 
 end.

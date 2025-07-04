@@ -1,3 +1,9 @@
+v1.2.6
+- JSONEnum for JSONDocArray (IJSONDocArrayEnumerator)
+- jsonV: support drag and drop files
+- jsonV: support multiple files
+- jsonV: tabular view support reordering columns, context menu with remove, sort
+
 v1.2.5
 - IJSONDocument.v0 function for direct variant access
 - newJSON, newJSONDocArray functions
