@@ -66,7 +66,7 @@ object frmJsonTable: TfrmJsonTable
       OnClick = Sortdescending1Click
     end
     object Removecolumn1: TMenuItem
-      Caption = '&Remove column'
+      Caption = '&Hide column'
       OnClick = Removecolumn1Click
     end
   end

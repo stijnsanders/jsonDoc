@@ -40,7 +40,7 @@ type
     procedure CreateParams(var Params: TCreateParams); override;
   public
     procedure BuildTable(ListSource: TForm; ListNode: TTreeNode;
-      IndexRow: integer; const v: Variant);
+      IndexRow: integer; const v: Variant; const NodeKey: string);
   end;
 
 var
@@ -91,7 +91,7 @@ end;
 { TfrmJsonTable }
 
 procedure TfrmJsonTable.BuildTable(ListSource: TForm; ListNode: TTreeNode;
-  IndexRow: integer; const v: Variant);
+  IndexRow: integer; const v: Variant; const NodeKey: string);
 var
   d,cw:IJSONDocument;
   e:IJSONEnumerator;
@@ -123,6 +123,8 @@ begin
       for i:=n1 to n2 do
        begin
         d:=JSON(v[i]);
+        if NodeKey<>'' then d:=JSON(d[NodeKey]);
+        if d=nil then d:=JSON;//?
         FItems[i-n1]:=d;
         if d<>nil then
          begin
@@ -441,7 +443,7 @@ begin
   s.cbSize:=SizeOf(TScrollInfo);
   s.fMask:=SIF_ALL;
   GetScrollInfo(ListView1.Handle,SB_HORZ,s);
-  t:=-s.nPos;
+  t:=0;//t:=-s.nPos;//?
   i:=0;
   while (i<ListView1.Columns.Count) and (t<Point.x) do
    begin
@@ -451,13 +453,12 @@ begin
   if i=0 then FCSel:=nil else FCSel:=ListView1.Columns[i-1];
 
   p:=ListView1.ClientToScreen(Point);
-  PopupMenu1.Popup(p.X,p.Y);
+  PopupMenu1.Popup(p.X-s.nPos,p.Y);
 end;
 
 procedure TfrmJsonTable.Removecolumn1Click(Sender: TObject);
 var
   t,i:integer;
-  a:array of string;
   c:TListColumn;
 begin
   if FCSel<>nil then
@@ -465,15 +466,13 @@ begin
     ListView1.Columns.BeginUpdate;
     ListView1.Items.BeginUpdate;
     try
+      t:=FCSel.Tag-1;
       ListView1.Columns.Delete(FCSel.Index);
-      SetLength(a,Length(FKeys));
-      for i:=0 to Length(FKeys)-1 do a[i]:=FKeys[i];
+      for i:=t to Length(FKeys)-2 do FKeys[i]:=FKeys[i+1];
       for i:=0 to ListView1.Columns.Count-1 do
        begin
         c:=ListView1.Column[i];
-        t:=c.Tag-1;
-        FKeys[i]:=a[t];
-        ListView1.Column[i].Tag:=i+1;//!
+        if c.Tag>t then c.Tag:=c.Tag-1;
        end;
     finally
       ListView1.Items.EndUpdate;

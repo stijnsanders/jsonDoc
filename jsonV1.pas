@@ -886,13 +886,25 @@ var
   r:integer;
   v:Variant;
   f:TfrmJsonTable;
-  s:string;
+  s,t:string;
 begin
   //Ctrl+T on TfrmJsonTable also end up here
   if Screen.ActiveForm<>Self then Exit;
   
   p:=TreeView1.Selected as TJSONNode;
   v:=p.Data[p.Key];
+
+  if not(TVarData(v).VType=varArray or varUnknown) and
+    (TVarData(v).VType=varUnknown) and //IJSONDocument?
+    (p.Parent<>nil) and (p.Parent.Count=1) then
+   begin
+    t:=p.Key;//'node'?
+    p:=p.Parent as TJSONNode;
+    v:=p.Data[p.Key];
+   end
+  else
+    t:='';
+
   if TVarData(v).VType=varArray or varUnknown then
    begin
     Screen.Cursor:=crHourGlass;
@@ -916,7 +928,7 @@ begin
        end;
       f.Caption:=Copy(s,2,Length(s)-1)+' - '+FFilePath+' - jsonV';
 
-      f.BuildTable(Self,n,r,v);
+      f.BuildTable(Self,n,r,v,t);
 
       f.Show;
     finally
@@ -969,7 +981,7 @@ begin
     if dataObj.GetData(f,m)=S_OK then
      begin
       h:=m.hGlobal;
-      l:=DragQueryFile(h,NativeUInt(-1),nil,0);
+      l:=DragQueryFile(h,$FFFFFFFF,nil,0);
       SetLength(n,l);
       for i:=0 to l-1 do
        begin
