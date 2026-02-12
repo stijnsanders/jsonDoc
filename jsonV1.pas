@@ -720,6 +720,8 @@ var
   p:TJSONNode;
   v:Variant;
   d:IJSONDocument;
+  s:string;
+  i:integer;
 begin
   if (TreeView1.Selected<>nil) and (TreeView1.Selected is TJSONNode) then
    begin
@@ -731,6 +733,20 @@ begin
         if (TVarData(v).VUnknown<>nil) and
           (IUnknown(v).QueryInterface(IJSONDocument,d)=S_OK) then
           Clipboard.AsText:=d.ToString;
+      varArray or varUnknown:
+       begin
+        s:='';
+        for i:=VarArrayLowBound(v,1) to VarArrayHighBound(v,1) do
+          s:=s+','+JSON(v[i]).ToString;
+        if s='' then
+          s:='[]'
+        else
+         begin
+          s:=s+']';
+          s[1]:='[';
+         end;
+        Clipboard.AsText:=s;
+       end;
       else Clipboard.AsText:=VarToStr(v);
     end;
    end;
@@ -783,7 +799,9 @@ begin
         if (vt=varUnknown) and (TVarData(v).VUnknown<>nil) and
           (IUnknown(v).QueryInterface(IJSONDocument,d)=S_OK) then
           Clipboard.AsText:=d.ToString
-        //else if vt=varArray or varUnknown then actViewTabular.Execute
+        else
+        if vt=(varArray or varUnknown) then
+          actViewTabular.Execute
         else
           Clipboard.AsText:=VarToStr(v);
        end;
