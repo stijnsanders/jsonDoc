@@ -1,5 +1,6 @@
 v1.2.6
 - JSONEnum for JSONDocArray (IJSONDocArrayEnumerator)
+- JSON([],'') overload
 - jsonV: support drag and drop files
 - jsonV: support multiple files
 - jsonV: tabular view support reordering columns, context menu with remove, sort
