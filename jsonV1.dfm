@@ -54,11 +54,12 @@ object frmJsonViewer: TfrmJsonViewer
       Caption = '...'
     end
     object txtFind: TEdit
-      Left = 40
-      Top = 4
+      Left = 37
+      Top = 6
       Width = 249
       Height = 24
       TabOrder = 0
+      OnChange = txtFindChange
       OnKeyPress = txtFindKeyPress
     end
     object btnFindPrev: TButton
@@ -81,8 +82,8 @@ object frmJsonViewer: TfrmJsonViewer
     end
   end
   object ActionList1: TActionList
-    Left = 8
-    Top = 8
+    Left = 40
+    Top = 24
     object actEditCopy: TEditCopy
       Category = 'Edit'
       Caption = '&Copy'
@@ -127,6 +128,13 @@ object frmJsonViewer: TfrmJsonViewer
       Caption = 'actViewTabular'
       ShortCut = 16468
       OnExecute = actViewTabularExecute
+    end
+    object actEditKey: TAction
+      Category = 'Edit'
+      Caption = 'Copy &key'
+      Hint = 'Copy key|Copies the key name to the clipboard'
+      ShortCut = 16459
+      OnExecute = actEditKeyExecute
     end
   end
 end

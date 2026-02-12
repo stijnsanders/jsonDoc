@@ -24,6 +24,7 @@ type
     actSortChildren: TAction;
     lblSearchResult: TLabel;
     actViewTabular: TAction;
+    actEditKey: TAction;
     procedure TreeView1CreateNodeClass(Sender: TCustomTreeView;
       var NodeClass: TTreeNodeClass);
     procedure TreeView1Expanding(Sender: TObject; Node: TTreeNode;
@@ -39,6 +40,8 @@ type
     procedure AppActivate(Sender: TObject);
     procedure actSortChildrenExecute(Sender: TObject);
     procedure actViewTabularExecute(Sender: TObject);
+    procedure actEditKeyExecute(Sender: TObject);
+    procedure txtFindChange(Sender: TObject);
   private
     FFilePath:string;
     FFileLastMod:int64;
@@ -734,6 +737,18 @@ begin
    end;
 end;
 
+procedure TfrmJsonViewer.actEditKeyExecute(Sender: TObject);
+var
+  p:TJSONNode;
+begin
+  if (TreeView1.Selected<>nil) and (TreeView1.Selected is TJSONNode) then
+   begin
+    p:=TreeView1.Selected as TJSONNode;
+    Clipboard.AsText:=p.Key;
+    //if p.Index<>-1 then +IntToStr(?
+   end;
+end;
+
 procedure TfrmJsonViewer.TreeView1Change(Sender: TObject; Node: TTreeNode);
 var
   n:TTreeNode;
@@ -781,6 +796,11 @@ begin
   panSearch.Visible:=true;
   txtFind.SelectAll;
   txtFind.SetFocus;
+end;
+
+procedure TfrmJsonViewer.txtFindChange(Sender: TObject);
+begin
+  lblSearchResult.Caption:='...';
 end;
 
 procedure TfrmJsonViewer.txtFindKeyPress(Sender: TObject; var Key: Char);
@@ -863,6 +883,9 @@ begin
   end;
   if n=nil then
     lblSearchResult.Caption:='none found'
+  else
+  if n=n1 then
+    lblSearchResult.Caption:=IntToStr(c)+' nodes, none found'
   else
    begin
     if Down then
