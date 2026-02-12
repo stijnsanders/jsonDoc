@@ -658,7 +658,9 @@ begin
           Text:=Text+' (bool) true'
         else
           Text:=Text+' (bool) false';
-      varUnknown,varDispatch:
+      varDispatch:
+        Text:=Text+' ('+VarTypeStr(vt)+')???';
+      varUnknown:
         if (TVarData(xValue).VUnknown<>nil) and
           (IUnknown(xValue).QueryInterface(IJSONDocument,d)=S_OK) then
          begin
@@ -719,6 +721,7 @@ procedure TfrmJsonViewer.actEditCopyValueExecute(Sender: TObject);
 var
   p:TJSONNode;
   v:Variant;
+  vt:TVarType;
   d:IJSONDocument;
   s:string;
   i:integer;
@@ -728,27 +731,27 @@ begin
     p:=TreeView1.Selected as TJSONNode;
     v:=p.Data[p.Key];
     if p.Index<>-1 then v:=v[VarArrayLowBound(v,1)+p.Index];
-    case TVarData(v).VType of
-      varUnknown,varDispatch:
-        if (TVarData(v).VUnknown<>nil) and
-          (IUnknown(v).QueryInterface(IJSONDocument,d)=S_OK) then
-          Clipboard.AsText:=d.ToString;
-      varArray or varUnknown:
+    vt:=TVarData(v).VType;
+    if (vt=varUnknown) and (TVarData(v).VUnknown<>nil) and
+      (IUnknown(v).QueryInterface(IJSONDocument,d)=S_OK) then
+      Clipboard.AsText:=d.ToString
+    else
+    if vt=(varArray or varUnknown) then
+     begin
+      s:='';
+      for i:=VarArrayLowBound(v,1) to VarArrayHighBound(v,1) do
+        s:=s+','+JSON(v[i]).ToString;
+      if s='' then
+        s:='[]'
+      else
        begin
-        s:='';
-        for i:=VarArrayLowBound(v,1) to VarArrayHighBound(v,1) do
-          s:=s+','+JSON(v[i]).ToString;
-        if s='' then
-          s:='[]'
-        else
-         begin
-          s:=s+']';
-          s[1]:='[';
-         end;
-        Clipboard.AsText:=s;
+        s:=s+']';
+        s[1]:='[';
        end;
-      else Clipboard.AsText:=VarToStr(v);
-    end;
+      Clipboard.AsText:=s;
+     end
+    else
+      Clipboard.AsText:=VarToStr(v);
    end;
 end;
 
