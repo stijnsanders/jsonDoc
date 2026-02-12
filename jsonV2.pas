@@ -193,7 +193,10 @@ begin
       sl.Free;
     end;
     if (IndexRow>0) and (IndexRow<ListView1.Items.Count) then
+     begin
+      ListView1.Items[IndexRow].MakeVisible(true);
       ListView1.ItemIndex:=IndexRow;
+     end;
   finally
     ListView1.Items.EndUpdate;
     ListView1.Columns.EndUpdate;

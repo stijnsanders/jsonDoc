@@ -24,7 +24,7 @@ type
     actSortChildren: TAction;
     lblSearchResult: TLabel;
     actViewTabular: TAction;
-    actEditKey: TAction;
+    actCopyKey: TAction;
     procedure TreeView1CreateNodeClass(Sender: TCustomTreeView;
       var NodeClass: TTreeNodeClass);
     procedure TreeView1Expanding(Sender: TObject; Node: TTreeNode;
@@ -40,7 +40,7 @@ type
     procedure AppActivate(Sender: TObject);
     procedure actSortChildrenExecute(Sender: TObject);
     procedure actViewTabularExecute(Sender: TObject);
-    procedure actEditKeyExecute(Sender: TObject);
+    procedure actCopyKeyExecute(Sender: TObject);
     procedure txtFindChange(Sender: TObject);
   private
     FFilePath:string;
@@ -358,7 +358,7 @@ begin
   e:=(Data as IJSONEnumerable).NewEnumerator;
   while e.Next do
     (TreeView1.Items.AddChild(Parent,e.Key) as TJSONNode).
-      ShowValue(Data,e.Key,-1,Data[e.Key]);
+      ShowValue(Data,e.Key,-1,e.Value);//Data[e.Key]);
 end;
 
 procedure TfrmJsonViewer.ExpandString(Parent: TTreeNode;
@@ -666,9 +666,9 @@ begin
           if e.EOF then s:='{}' else
            begin
             s:='';
-            while e.Next and (Length(s)<255) do
+            while e.Next and (Length(s)<250) do
              begin
-              s:=s+', '+e.Key;
+              if s='' then s:='{'+e.Key else s:=s+', '+e.Key;
               vt:=TVarData(e.Value).VType;
               case vt of
                 varNull,varEmpty:;//s:=s+': null';
@@ -697,7 +697,6 @@ begin
                  end;
               end;
              end;
-            s[1]:='{';
             if e.EOF then s:=s+'}' else s:=s+' ...';
            end;
           Text:=Text+' '+s;
@@ -737,7 +736,7 @@ begin
    end;
 end;
 
-procedure TfrmJsonViewer.actEditKeyExecute(Sender: TObject);
+procedure TfrmJsonViewer.actCopyKeyExecute(Sender: TObject);
 var
   p:TJSONNode;
 begin

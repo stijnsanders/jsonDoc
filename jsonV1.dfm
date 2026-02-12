@@ -129,12 +129,12 @@ object frmJsonViewer: TfrmJsonViewer
       ShortCut = 16468
       OnExecute = actViewTabularExecute
     end
-    object actEditKey: TAction
+    object actCopyKey: TAction
       Category = 'Edit'
       Caption = 'Copy &key'
       Hint = 'Copy key|Copies the key name to the clipboard'
       ShortCut = 16459
-      OnExecute = actEditKeyExecute
+      OnExecute = actCopyKeyExecute
     end
   end
 end
