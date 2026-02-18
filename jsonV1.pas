@@ -289,6 +289,7 @@ begin
   p:=Node as TJSONNode;
   if not p.Loaded then
    begin
+    Screen.Cursor:=crHourGlass;
     TreeView1.Items.BeginUpdate;
     try
       p.Loaded:=true;
@@ -345,6 +346,7 @@ begin
         //no p.Data
     finally
       TreeView1.Items.EndUpdate;
+      Screen.Cursor:=crDefault;
     end;
    end;
 end;
@@ -377,8 +379,9 @@ begin
       j:=i;
       while (j<=l) and (Data[j]>=' ') do inc(j);
       inc(k);
-      TreeView1.Items.AddChild(Parent,
-        Format('@%d <%d..%d> %s',[k,i-1,j-1,Copy(Data,i,j-i)]));
+      if j<=l then
+        TreeView1.Items.AddChild(Parent,
+          Format('@%d <%d..%d> %s',[k,i-1,j-1,Copy(Data,i,j-i)]));
       i:=j;
      end;
    end;
@@ -1015,6 +1018,7 @@ var
 begin
   //TODO: if frmJsonViewer.FFileMulti and ((grfKeyState and MK_CONTROL)<>0)
   //  support adding files?
+  Screen.Cursor:=crHourGlass;
   try
     f.cfFormat:=CF_HDROP;
     f.ptd:=nil;
@@ -1040,6 +1044,7 @@ begin
   except
     Result:=E_FAIL;
   end;
+  Screen.Cursor:=crDefault;
 end;
 
 end.
