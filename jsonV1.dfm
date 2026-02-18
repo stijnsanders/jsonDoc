@@ -125,7 +125,7 @@ object frmJsonViewer: TfrmJsonViewer
     end
     object actViewTabular: TAction
       Category = 'View'
-      Caption = 'actViewTabular'
+      Caption = 'View as table...'
       ShortCut = 16468
       OnExecute = actViewTabularExecute
     end
@@ -135,6 +135,12 @@ object frmJsonViewer: TfrmJsonViewer
       Hint = 'Copy key|Copies the key name to the clipboard'
       ShortCut = 16459
       OnExecute = actCopyKeyExecute
+    end
+    object actViewSortChildren: TAction
+      Category = 'View'
+      Caption = 'Sort children'
+      ShortCut = 16467
+      OnExecute = actViewSortChildrenExecute
     end
   end
 end

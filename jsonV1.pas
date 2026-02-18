@@ -25,6 +25,7 @@ type
     lblSearchResult: TLabel;
     actViewTabular: TAction;
     actCopyKey: TAction;
+    actViewSortChildren: TAction;
     procedure TreeView1CreateNodeClass(Sender: TCustomTreeView;
       var NodeClass: TTreeNodeClass);
     procedure TreeView1Expanding(Sender: TObject; Node: TTreeNode;
@@ -42,6 +43,7 @@ type
     procedure actViewTabularExecute(Sender: TObject);
     procedure actCopyKeyExecute(Sender: TObject);
     procedure txtFindChange(Sender: TObject);
+    procedure actViewSortChildrenExecute(Sender: TObject);
   private
     FFilePath:string;
     FFileLastMod:int64;
@@ -1045,6 +1047,53 @@ begin
     Result:=E_FAIL;
   end;
   Screen.Cursor:=crDefault;
+end;
+
+procedure TfrmJsonViewer.actViewSortChildrenExecute(Sender: TObject);
+var
+  n,m,p,q:TTreeNode;
+  sl:TStringList;
+  i:integer;
+begin
+  n:=TreeView1.Selected;
+  q:=n;
+  if (n<>nil) and (n.Count=0) then n:=n.Parent;
+  if n<>nil then
+   begin
+    n.Expand(false);
+    sl:=TStringList.Create;
+    Screen.Cursor:=crHourGlass;
+    TreeView1.Items.BeginUpdate;
+    try
+      sl.Sorted:=true;
+
+      p:=TreeView1.Items.Insert(n,'*temp*');
+      while n.Count<>0 do
+       begin
+        m:=n[0];
+        sl.AddObject(m.Text,m);
+        m.MoveTo(p,naAddChild);
+       end;
+
+      for i:=0 to sl.Count-1 do
+       begin
+        m:=sl.Objects[i] as TTreeNode;
+        m.MoveTo(n,naAddChild);
+       end;
+
+      p.Delete;
+
+    finally
+      sl.Free;
+      TreeView1.Items.EndUpdate;
+      Screen.Cursor:=crDefault;
+      if q<>nil then
+       begin
+        q.MakeVisible;
+        TreeView1.Selected:=q;
+       end;
+    end;
+   end;
 end;
 
 end.

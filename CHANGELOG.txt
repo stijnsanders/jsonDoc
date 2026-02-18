@@ -4,6 +4,7 @@ v1.2.6
 - jsonV: support drag and drop files
 - jsonV: support multiple files
 - jsonV: tabular view support reordering columns, context menu with remove, sort
+- jsonV: Ctrl+S to sort children nodes alphabetically
 
 v1.2.5
 - IJSONDocument.v0 function for direct variant access
