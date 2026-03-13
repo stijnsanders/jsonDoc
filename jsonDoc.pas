@@ -1413,6 +1413,15 @@ begin
 
 
   finally
+    {$IFNDEF JSONDOC_NO_LOAD_AFTER_ERROR}
+    while head<>0 do
+     begin
+      m:=@FNodes[head];
+      haed:=m.F2;
+      m.Next:=0;
+      m.F2:=0;
+     end;
+    {$ENDIF}
     if DataIndex<>0 then FNodes[DataIndex].Next:=RestoreNext;
     {$IFDEF JSONDOC_THREADSAFE}
     LeaveCriticalSection(FLock);
