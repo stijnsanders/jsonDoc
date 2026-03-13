@@ -1,3 +1,8 @@
+v1.3.0
+- TJSONBuilder for faster string building
+- TJSONMemBank for shared internal storage of JSON structure
+- revised internal key value store with fast key hash tree lookup
+
 v1.2.6
 - JSONEnum for JSONDocArray (IJSONDocArrayEnumerator)
 - JSON([],'') overload
