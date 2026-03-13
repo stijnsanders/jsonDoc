@@ -429,7 +429,7 @@ type
     FNodes: array of TJSONMemNode;
   protected
     function Bank: TObject;
-    function ExVicinity(di: integer): WideString;
+    function ExVicinity(di: cardinal): WideString;
     function Key(n: integer): WideString;
     function GetStringValue(vi, vl: integer): WideString;
 
@@ -1057,6 +1057,7 @@ var
   v64p:packed record v64lo,v64hi:integer; end absolute v64;
 begin
   RestoreNext:=0;//default
+  head:=0;//counter warning
   {$IFDEF JSONDOC_THREADSAFE}
   EnterCriticalSection(FLock);
   {$ENDIF}
@@ -1417,7 +1418,7 @@ begin
     while head<>0 do
      begin
       m:=@FNodes[head];
-      haed:=m.F2;
+      head:=m.F2;
       m.Next:=0;
       m.F2:=0;
      end;
@@ -1429,19 +1430,23 @@ begin
   end;
 end;
 
-function TJSONMemBank.ExVicinity(di:integer):WideString;
+function TJSONMemBank.ExVicinity(di:cardinal):WideString;
 const
   VicinityExtent=12;
 var
   i:integer;
+  dj:cardinal;
 begin
+  dj:=VicinityExtent;
+  if di+dj>=json.DataIndex then
+    dj:=json.DataIndex-di;
   if di<=VicinityExtent then
     Result:=#13#10'(#'+IntToStr(di)+')"'+Copy(json.Data,1,di-1)+
-      ' >>> '+json.Data[di]+' <<< '+Copy(json.Data,di+1,VicinityExtent)+'"'
+      ' >>> '+json.Data[di]+' <<< '+Copy(json.Data,di+1,dj)+'"'
   else
     Result:=#13#10'(#'+IntToStr(di)+')"...'+
       Copy(json.Data,di-VicinityExtent,VicinityExtent)+
-      ' >>> '+json.Data[di]+' <<< '+Copy(json.Data,di+1,VicinityExtent)+'"';
+      ' >>> '+json.Data[di]+' <<< '+Copy(json.Data,di+1,dj)+'"';
   for i:=1 to Length(Result) do
     if word(Result[i])<32 then Result[i]:='|';
 end;
