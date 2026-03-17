@@ -3917,7 +3917,7 @@ begin
         if Doc.QueryInterface(IID_IJSONMemBankLoadable,dl)=S_OK then
           dl.LoadBank(FMemBank,bi)
         else
-          Doc.Parse(b.GetStringValue(m.ValueIndex,m.ValueLength));
+          Doc.Parse(Copy(b.json.Data,m.ValueIndex,m.ValueLength));
       jfdRawJSON:
        begin
         if Doc.QueryInterface(IID_IJSONMemBankLoadable,dl)=S_OK then
@@ -3926,7 +3926,7 @@ begin
           dl.LoadBank(FMemBank,bn);
          end
         else
-          Doc.Parse(b.GetStringValue(m.ValueIndex,m.ValueLength));
+          Doc.Parse(Copy(b.json.Data,m.ValueIndex,m.ValueLength));
        end;
       else
         raise EJSONException.Create('Unexpected array element type');
@@ -3969,13 +3969,12 @@ begin
     {
     case b.FNodes[bi].F1 and jfd_Mask of
       jfdNull:;//?
-      //jfdRasJSON:Doc.Parse(b.GetStringValue(bi
+      jfdRawJSON:Doc.Parse(Copy(b.json.Data,m.ValueIndex,m.ValueLength));
       else
         raise EJSONException.Create('Unexpected node type in document array');
     end;
     }
-    Result:=b.GetStringValue(m.ValueIndex,m.ValueLength);
-
+    Result:=Copy(b.json.Data,m.ValueIndex,m.ValueLength);
 
   {$IFDEF JSONDOC_THREADSAFE}
   finally
@@ -4067,7 +4066,7 @@ begin
           w.Append('null')
         else
          begin
-          z:=b.GetStringValue(m.ValueIndex,m.ValueLength);
+          z:=Copy(b.json.Data,m.ValueIndex,m.ValueLength);
           {$IFDEF JSONDOC_STOREINDENTING}
           wr(w,z,#13#10,Copy(tabs,1,TabIndex+3));
           {$ELSE}
@@ -4106,14 +4105,50 @@ begin
   {$ENDIF}
 end;
 
+
 procedure TJSONDocArray.LoadBank(Bank: IUnknown; Index: integer);
+var
+  bb:IJSONMemBank;
+  b:TJSONMemBank;
+  n:integer;
+  function IsHigherIndex:boolean;
+  var
+    bi,h:integer;
+  begin
+    Result:=false;
+    n:=0;
+    h:=0;
+    if FMemBank<>nil then
+     begin
+      b:=FMemBank.Bank as TJSONMemBank;
+      bi:=b.FNodes[FBaseIndex].Child;
+      while bi<>0 do
+       begin
+        if h<bi then h:=bi;
+        n:=bi;
+        bi:=b.FNodes[bi].Next;
+       end;
+      Result:=h<Index;
+     end;
+  end;
 begin
   {$IFDEF JSONDOC_THREADSAFE}
   EnterCriticalSection(FLock);
   try
   {$ENDIF}
-    FMemBank:=Bank as IJSONMemBank;
-    FBaseIndex:=Index;
+
+    bb:=Bank as IJSONMemBank;
+    //if Allow_Coalesce_DocArrays and LoadIndex=?
+    if (FMemBank=bb) and IsHigherIndex then
+     begin
+      //assert n<>0 and b.FNodes[n].Next=0
+      b.FNodes[n].Next:=b.FNodes[Index].Child;
+     end
+    else
+     begin
+      FMemBank:=bb;
+      FBaseIndex:=Index;
+     end;
 
     //TODO: basic checks?
     //assert (b.FNodes[FBaseIndex].F1 and jfd_Mask)=jfd_Array
