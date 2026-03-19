@@ -55,6 +55,13 @@ begin
   d1.Parse('{"a":[{"x":"a\"b\"c"}]}');
   Expect(d1.AsString,'{"a":[{"x":"a\"b\"c"}]}','check espaced quotes in doc array');
 
+  a1:=JSONDocArray;
+  d1:=JSON(['a',a1]);
+  d1.Parse('{"a":[{"x":1},{"y":2}]}');
+  //d1.Clear;
+  d1.Parse('{"a":[{"x":3},{"y":4}]}');
+  Expect(IntToStr(a1.Count),'4','sequential parse without clear builds doc array');
+
 end;
 
 end.
