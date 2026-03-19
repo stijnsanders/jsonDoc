@@ -1,5 +1,7 @@
 program jsonV;
 
+{$R 'jsonV_ver.res' 'jsonV_ver.rc'}
+
 uses
   Forms,
   jsonV1 in 'jsonV1.pas' {frmJsonViewer},
