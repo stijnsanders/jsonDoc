@@ -62,6 +62,14 @@ begin
   d1.Parse('{"a":[{"x":3},{"y":4}]}');
   Expect(IntToStr(a1.Count),'4','sequential parse without clear builds doc array');
 
+  //build doc array with docs
+  d1:=JSON(['a',newJSONDocArray(a1)]);
+  d2:=JSON(['x',true]);
+  a1.Add(d2);
+  d2['x']:=1;
+  a1.Add(d2);
+  Expect(d1.AsString,'{"a":[{"x":true},{"x":1}]}','build doc array with docs');
+
 end;
 
 end.

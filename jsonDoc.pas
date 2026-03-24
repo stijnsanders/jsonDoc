@@ -210,7 +210,6 @@ type
   ['{4A534F4E-0001-000B-C000-00000000000B}']
     procedure ClearBank(MemBank: IJSONMemBank); stdcall;
     procedure LoadBank(Bank: IUnknown; Index: integer); stdcall;
-    procedure CloneBank(var MemBank: IJSONMemBank; var Index: integer); stdcall;
     procedure Build(Builder: pointer; TabIndex: integer); stdcall;
   end;
 
@@ -470,7 +469,6 @@ type
 
     procedure ClearBank(MemBank: IJSONMemBank); stdcall;
     procedure LoadBank(Bank: IUnknown; Index: integer); stdcall;
-    procedure CloneBank(var MemBank: IJSONMemBank; var Index: Integer); stdcall;
     procedure Build(Builder: pointer; TabIndex: integer); stdcall;
   public
     procedure AfterConstruction; override;
@@ -640,7 +638,6 @@ type
     //IJSONMemBankLoadable
     procedure ClearBank(MemBank: IJSONMemBank); stdcall;
     procedure LoadBank(Bank: IUnknown; Index: integer); stdcall;
-    procedure CloneBank(var MemBank: IJSONMemBank; var Index: Integer); stdcall;
     procedure Build(Builder: pointer; TabIndex: integer); stdcall;
   public
     constructor Create;
@@ -2329,16 +2326,6 @@ begin
   {$ENDIF}
 end;
 
-procedure TJSONDocument.CloneBank(var MemBank: IJSONMemBank; var Index: Integer);
-begin
-  MemBank:=FMemBank;
-  Index:=0;//FBaseIndex
-  inc(FLoadIndex);
-  if FLoadIndex=0 then inc(FLoadIndex);
-  FFirst:=nil;
-  FLast:=nil;
-end;
-
 procedure TJSONBuilder.EncodeStr(const x:WideString);
 const
   hex:array[0..15] of WideChar=(
@@ -3821,26 +3808,16 @@ end;
 
 function TJSONDocArray.Add(const Doc: IJSONDocument): integer;
 var
+  w:WideString;
   b:TJSONMemBank;
-  bi:integer;
-  l:IJSONMemBankLoadable;
 begin
+  w:=Doc.AsString;
+
   {$IFDEF JSONDOC_THREADSAFE}
   EnterCriticalSection(FLock);
   try
   {$ENDIF}
 
-    if (FMemBank=nil) and (Doc<>nil) and
-      (Doc.QueryInterface(IID_IJSONMemBankLoadable,l)=S_OK) then
-     begin
-      l.CloneBank(FMemBank,bi);
-      l:=nil;
-      if FMemBank<>nil then
-       begin
-        b:=FMemBank.Bank as TJSONMemBank;
-        FBaseIndex:=b.StartArray;
-       end;
-     end;
     if FMemBank=nil then
      begin
       b:=TJSONMemBank.Create;
@@ -3850,7 +3827,10 @@ begin
     else
       b:=FMemBank.Bank as TJSONMemBank;
 
-    Result:=b.Add(FBaseIndex,'',Doc);
+    //TODO: preserve structure when present instead of AsString
+    //'CloneBank'?
+
+    Result:=b.Add(FBaseIndex,w,nil);
 
   {$IFDEF JSONDOC_THREADSAFE}
   finally
@@ -4168,12 +4148,6 @@ begin
     LeaveCriticalSection(FLock);
   end;
   {$ENDIF}
-end;
-
-procedure TJSONDocArray.CloneBank(var MemBank: IJSONMemBank; var Index: Integer);
-begin
-  MemBank:=FMemBank;
-  Index:=FBaseIndex;
 end;
 
 { TJSONDocArrayEnumerator }
