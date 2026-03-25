@@ -381,9 +381,8 @@ begin
       j:=i;
       while (j<=l) and (Data[j]>=' ') do inc(j);
       inc(k);
-      if j<=l then
-        TreeView1.Items.AddChild(Parent,
-          Format('@%d <%d..%d> %s',[k,i-1,j-1,Copy(Data,i,j-i)]));
+      TreeView1.Items.AddChild(Parent,
+        Format('@%d <%d..%d> %s',[k,i-1,j-1,Copy(Data,i,j-i)]));
       i:=j;
      end;
    end;
