@@ -933,7 +933,7 @@ var
   r:integer;
   v:Variant;
   f:TfrmJsonTable;
-  s,t:string;
+  s,t,fn:string;
 begin
   //Ctrl+T on TfrmJsonTable also end up here
   if Screen.ActiveForm<>Self then Exit;
@@ -963,17 +963,21 @@ begin
       if r<>-1 then //item of doc array selected?
         n:=n.Parent as TJSONNode;
 
-      s:='.'+p.Key;
-      p:=p.Parent as TJSONNode;
+      s:=' #'+IntToStr(VarArrayHighBound(v,1)+1);
+      fn:=FFilePath;
+      p:=n;
       while p<>nil do
        begin
         if p.Index=-1 then
-          s:='.'+p.Key+s
+          if (p.Parent=nil) and FFileMulti then
+            fn:=p.Text
+          else
+            s:='.'+p.Key+s
         else
           s:='['+IntToStr(p.Index)+']'+s;
         p:=p.Parent as TJSONNode;
        end;
-      f.Caption:=Copy(s,2,Length(s)-1)+' - '+FFilePath+' - jsonV';
+      f.Caption:=Copy(s,2,Length(s)-1)+' - '+fn+' - jsonV';
 
       f.BuildTable(Self,n,r,v,t);
 
