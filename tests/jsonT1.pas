@@ -70,6 +70,27 @@ begin
   a1.Add(d2);
   Expect(d1.AsString,'{"a":[{"x":true},{"x":1}]}','build doc array with docs');
 
+
+  a1:=JSONDocArray;
+  a1.AddJSON('{"x":1}');//a1.Add(JSON(['x',1]));
+  a1.AddJSON('{"y":2}');//a1.Add(JSON(['y',2]));
+  d1:=JSON;
+  a1.LoadItem(0,d1);
+  d1['z']:=3;
+  a1[0]:=d1;
+  Expect(a1.AsString,'[{"x":1,"z":3},{"y":2}]','update doc array item');
+
+  //a1[1]:=JSON(['y',5]);
+  a1.LoadItem(1,d1);
+  d1['y']:=d1['y']+3;
+  a1[1]:=d1;
+  Expect(a1.AsString,'[{"x":1,"z":3},{"y":5}]','update doc array item');
+  d1:=JSON;
+  a1.LoadItem(1,d1);
+  Expect(d1.AsString,'{"y":5}','update doc array item');
+
+
+
 end;
 
 end.

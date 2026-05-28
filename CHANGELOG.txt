@@ -1,3 +1,6 @@
+v1.3.1
+- fixed issue with updating IJSONDocArray elements
+
 v1.3.0
 - TJSONBuilder for faster string building
 - TJSONMemBank for shared internal storage of JSON structure
