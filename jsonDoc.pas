@@ -6,7 +6,7 @@ Copyright 2015-2026 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
-v1.3.1
+v1.3.1-bis
 
 }
 unit jsonDoc;
@@ -3793,7 +3793,6 @@ begin
 
     FMemBank:=nil;
     FBaseIndex:=0;
-
     {$IFNDEF JSONDOC_THREADSAFE}
     FCurrentIndex:=-1;
     FCurrentNode:=0;
@@ -4086,9 +4085,15 @@ begin
   EnterCriticalSection(FLock);
   try
   {$ENDIF}
+
     //TODO: if FMemBank<>nil then? if MemBank<>nil then?
     FMemBank:=nil;
     FBaseIndex:=0;
+    {$IFNDEF JSONDOC_THREADSAFE}
+    FCurrentIndex:=-1;
+    FCurrentNode:=0;
+    {$ENDIF}
+
   {$IFDEF JSONDOC_THREADSAFE}
   finally
     LeaveCriticalSection(FLock);
@@ -4139,6 +4144,10 @@ begin
      begin
       FMemBank:=bb;
       FBaseIndex:=Index;
+      {$IFNDEF JSONDOC_THREADSAFE}
+      FCurrentIndex:=-1;
+      FCurrentNode:=0;
+      {$ENDIF}
      end;
 
     //TODO: basic checks?
