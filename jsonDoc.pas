@@ -6,7 +6,7 @@ Copyright 2015-2026 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
-v1.3.1-bis
+v1.3.2
 
 }
 unit jsonDoc;
@@ -403,6 +403,7 @@ type
     procedure Clear;
     function Reserve(l: cardinal): cardinal;
     procedure Append(const x: WideString);
+    procedure Absorb(const x: WideString; Index, Length: cardinal);
     {$IFDEF JSONDOC_STOREINDENTING}
     procedure Write(const x; l: Cardinal);
     {$ENDIF}
@@ -846,6 +847,15 @@ begin
   l:=Length(x);
   d:=Reserve(l);
   Move(x[1],Data[DataIndex+1],l*w2);
+  DataIndex:=d;
+end;
+
+procedure TJSONBuilder.Absorb(const x: WideString; Index, Length: cardinal);
+var
+  d:cardinal;
+begin
+  d:=Reserve(Length);
+  Move(x[Index],Data[DataIndex+1],Length*w2);
   DataIndex:=d;
 end;
 
@@ -2094,6 +2104,7 @@ begin
               else
                 at:=varVariant;
             end;
+          //varUnknown see IsDocArray above!
           varVariant:
             ;//Already creating an VarArray of varVariant
           else
@@ -2302,19 +2313,30 @@ begin
      begin
       p:=StoreItem(b.Key(bi));
       p.NodeIndex:=bi;
-      if (b.FNodes[bi].F1 and jfd_Mask) in [jfdObject,jfdArray] then
-       begin
-        if (TVarData(p.Value).VType=varUnknown) and
-          (TVarData(p.Value).VUnknown<>nil) and
-          (IUnknown(p.Value).QueryInterface(IID_IJSONMemBankLoadable,d)=S_OK) then
-          try
-            d.LoadBank(Bank,bi);
-            p.NodeIndex:=0;//mark element loaded
-          finally
-            d:=nil;
-          end;
-       end
+      if ((b.FNodes[bi].F1 and jfd_Mask) in [jfdObject,jfdArray]) and
+        (TVarData(p.Value).VType=varUnknown) and
+        (TVarData(p.Value).VUnknown<>nil) and
+        (IUnknown(p.Value).QueryInterface(IID_IJSONMemBankLoadable,d)=S_OK) then
+        try
+          d.LoadBank(Bank,bi);
+          p.NodeIndex:=0;//mark element loaded
+        finally
+          d:=nil;
+        end
       else
+{
+      if ((b.FNodes[bi].F1 and jfd_Mask)=jfdArray) and
+        //IsDocArray? and
+        (TVarData(p.Value).VType=varUnknown) and
+        (TVarData(p.Value).VUnknown<>nil) and
+        (IUnknown(p.Value).QueryInterface(IID_IJSONDocArray,a)=S_OK) then
+        try
+          a.Parse(Copy(b.json.Data?//TODO
+        finally
+          a:=nil;
+        end;
+      else
+}
         VarClear(p.Value);
       bi:=b.FNodes[bi].Next;
      end;
@@ -2604,7 +2626,7 @@ begin
          begin
           if firstItem then firstItem:=false else w.Append(',');
           {$IFDEF JSONDOC_STOREINDENTING}
-          w.Append(Copy(tabs,1,TabIndex+2));
+          w.Absorb(tabs,1,TabIndex+2);
           {$ENDIF}
           if not IsArray then
            begin
@@ -2701,7 +2723,7 @@ begin
          begin
           {$IFDEF JSONDOC_STOREINDENTING}
           dec(TabIndex);
-          if not firstItem then w.Append(Copy(tabs,1,TabIndex+2));
+          if not firstItem then w.Absorb(tabs,1,TabIndex+2);
           {$ENDIF}
           if IsArray then w.Append(']') else w.Append('}');
           firstItem:=false;
@@ -3652,7 +3674,7 @@ begin
       jfdObject:
         bn:=bi;
       jfdRawJSON:
-        b.Parse(bn,bi);
+        b.Parse(bn,bi);//TODO: re-use Child?
       else
         raise EJSONException.Create('Unexpected array element type');
     end;
@@ -3748,6 +3770,7 @@ begin
       else raise EJSONEncodeException.Create(
         'JSONDocArray.Set_Item requires IJSONDocument instances');
     end;
+
   {$IFDEF JSONDOC_THREADSAFE}
   finally
     LeaveCriticalSection(FLock);
@@ -3908,7 +3931,7 @@ begin
        begin
         if Doc.QueryInterface(IID_IJSONMemBankLoadable,dl)=S_OK then
          begin
-          b.Parse(bn,bi);
+          b.Parse(bn,bi);//TODO: re-use Child?
           dl.LoadBank(FMemBank,bn);
          end
         else
@@ -4004,13 +4027,36 @@ begin
 end;
 
 procedure TJSONDocArray.Build(Builder: pointer; TabIndex: integer);
+const
+  stackGrowStep=$20;
 var
   b:TJSONMemBank;
   w:PJSONBuilder absolute Builder;
-  bi,wi:integer;
+  bi,si:integer;
+  IsArray,IsFirst:boolean;
   l:cardinal;
   m:PJSONMemNode;
   z:WideString;
+  v64:int64;
+  v64p:packed record v64lo,v64hi:integer; end absolute v64;
+  stack:array of record
+    bi:integer;
+    ia:boolean;
+  end;
+  stackLength,stackIndex:integer;
+
+  procedure Push;
+  begin
+    if stackIndex=stackLength then
+     begin
+      inc(stackLength,stackGrowStep);
+      SetLength(stack,stackLength);
+     end;
+    stack[stackIndex].bi:=bi;
+    stack[stackIndex].ia:=IsArray;
+    inc(stackIndex);
+  end;
+
 begin
   {$IFDEF JSONDOC_THREADSAFE}
   EnterCriticalSection(FLock);
@@ -4041,33 +4087,119 @@ begin
       w.Reserve(l);
 
       //now build array
-      wi:=w.DataIndex+1;
+      stackLength:=0;
+      stackIndex:=0;
       bi:=b.FNodes[FBaseIndex].Child;
-      while (bi<>0) do
+      IsArray:=true;
+      IsFirst:=true;
+      while not((bi=0) and (stackIndex=0)) do
        begin
-        w.Append(',');
-        {$IFDEF JSONDOC_STOREINDENTING}
-        w.Append(Copy(tabs,1,TabIndex+3));
-        {$ENDIF}
-        m:=@b.FNodes[bi];
-        if (m.F1 and jfd_Mask)=jfdNull then
-          w.Append('null')
+        if IsFirst then
+         begin
+          if IsArray then w.Append('[') else w.Append('{');
+          IsFirst:=false;
+         end
         else
          begin
-          //z:=Copy(b.json.Data,m.ValueIndex,m.ValueLength);
-          SetLength(z,m.ValueLength);
-          Move(b.json.Data[m.ValueIndex],z[1],m.ValueLength*w2);
+          w.Append(',');
+         end;
+        {$IFDEF JSONDOC_STOREINDENTING}
+        w.Append(Copy(tabs,1,TabIndex+stackIndex+3));
+        {$ENDIF}
+        if not IsArray then
+         begin
+          w.EncodeStr(b.Key(bi));
           {$IFDEF JSONDOC_STOREINDENTING}
-          wr(w,z,#13#10,Copy(tabs,1,TabIndex+3));
+          w.Append(': ');
           {$ELSE}
-          w.Append(z);
+          w.Append(':');
           {$ENDIF}
          end;
-        bi:=m.Next;
+        m:=@b.FNodes[bi];
+        si:=stackIndex;
+        case m.F1 and jfd_Mask of
+          jfdNull:
+            w.Append('null');
+          jfdBoolTrue:
+            w.Append('true');
+          jfdBoolFalse:
+            w.Append('false');
+          jfdArray:
+            if m.Child=0 then
+              w.Append('[]')
+            else
+             begin
+              Push;
+              bi:=m.Child;
+              IsArray:=true;
+              IsFirst:=true;
+             end;
+          jfdObject:
+            if m.Child=0 then
+              w.Append('{}')
+            else
+             begin
+              Push;
+              bi:=m.Child;
+              IsArray:=false;
+              IsFirst:=true;
+             end;
+          jfdRawJSON:
+           begin
+            //z:=Copy(b.json.Data,m.ValueIndex,m.ValueLength);
+            SetLength(z,m.ValueLength);
+            Move(b.json.Data[m.ValueIndex],z[1],m.ValueLength*w2);
+            {$IFDEF JSONDOC_STOREINDENTING}
+            wr(w,z,#13#10,Copy(tabs,1,TabIndex+3));
+            {$ELSE}
+            w.Append(z);
+            {$ENDIF}
+           end;
+
+
+          jfdStringNoEsc:
+           begin   
+            w.Append('"');
+            w.Absorb(b.json.Data,m.ValueIndex,m.ValueLength);
+            w.Append('"');
+           end;
+          jfdStringWithEsc,jfdStringPascal://TODO: split into GetEscStr,GetPascalStr
+            w.EncodeStr(b.GetStringValue(m.ValueIndex,m.ValueLength));
+          jfdInt8,jfdInt16,jfdInt32:
+            w.Append(IntToStr(m.ValueLength));
+          jfdInt64:
+           begin
+            v64p.v64hi:=m.ValueIndex;
+            v64p.v64lo:=m.ValueLength;
+            w.Append(IntToStr(v64));
+           end;
+          jfdFloat:
+            w.Absorb(b.json.Data,m.ValueIndex,m.ValueLength);
+
+          else
+            raise EJSONException.Create('Unexpected array element type');
+        end;
+        if si=stackIndex then //nu push
+         begin
+          bi:=m.Next;
+          while (bi=0) and (stackIndex<>0) do
+           begin
+            {$IFDEF JSONDOC_STOREINDENTING}
+            w.Absorb(tabs,1,TabIndex+stackIndex+2);
+            {$ENDIF}
+            if IsArray then w.Append(']') else w.Append('}');
+
+            //pop
+            dec(stackIndex);
+            bi:=stack[stackIndex].bi;
+            IsArray:=stack[stackIndex].ia;
+
+            bi:=b.FNodes[bi].Next;
+           end;
+         end;
        end;
-      w.Data[wi]:='[';
       {$IFDEF JSONDOC_STOREINDENTING}
-      w.Append(Copy(tabs,1,TabIndex+2));
+      w.Absorb(tabs,1,TabIndex+2);
       {$ENDIF}
       w.Append(']');
      end;
@@ -4085,7 +4217,7 @@ begin
   EnterCriticalSection(FLock);
   try
   {$ENDIF}
-
+  
     //TODO: if FMemBank<>nil then? if MemBank<>nil then?
     FMemBank:=nil;
     FBaseIndex:=0;

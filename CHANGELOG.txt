@@ -1,3 +1,6 @@
+v1.3.2
+- fixed issue with IJSONDocArray.AsString
+
 v1.3.1
 - fixed issue with updating IJSONDocArray elements
 
