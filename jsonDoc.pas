@@ -6,7 +6,7 @@ Copyright 2015-2026 Stijn Sanders
 Made available under terms described in file "LICENSE"
 https://github.com/stijnsanders/jsonDoc
 
-v1.3.2
+v1.3.3
 
 }
 unit jsonDoc;
@@ -2113,7 +2113,7 @@ begin
         inc(an);
         bi:=b.FNodes[bi].Next;
        end;
-      if at=varEmpty then at:=varVariant;//varNull?
+      if (at=varEmpty) or (at=varNull) then at:=varVariant;
 
 {
       //check existing instance
